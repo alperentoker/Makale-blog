@@ -95,7 +95,15 @@ export function rowToArticle(row: any): Article {
     keywords: JSON.parse(row.keywords || '[]'),
     telemetry: JSON.parse(row.telemetry || '{}'),
     tables: JSON.parse(row.tables || '[]'),
-    beforeAfterMedia: row.beforeAfterMedia ? JSON.parse(row.beforeAfterMedia) : undefined,
+    beforeAfterMedia: (() => {
+      try {
+        if (!row.beforeAfterMedia || row.beforeAfterMedia === '{}') return undefined;
+        const parsed = JSON.parse(row.beforeAfterMedia);
+        return parsed && parsed.beforeUrl && parsed.afterUrl ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    })(),
     series: row.series && row.series !== '{}' ? JSON.parse(row.series) : undefined,
     bibtex: row.bibtex || '',
     content: row.content,
@@ -160,7 +168,9 @@ export function saveArticle(art: Article): Article {
     keywords: JSON.stringify(art.keywords || []),
     telemetry: JSON.stringify(art.telemetry || {}),
     tables: JSON.stringify(art.tables || []),
-    beforeAfterMedia: JSON.stringify(art.beforeAfterMedia || {}),
+    beforeAfterMedia: (art.beforeAfterMedia && art.beforeAfterMedia.beforeUrl && art.beforeAfterMedia.afterUrl)
+      ? JSON.stringify(art.beforeAfterMedia)
+      : '{}',
     series: JSON.stringify(art.series || {}),
     bibtex: art.bibtex || '',
     content: art.content || '',

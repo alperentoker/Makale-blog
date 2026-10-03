@@ -301,7 +301,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
             )}
 
             {/* Before/After Interactive Comparison (Thermal Reticle Frame) */}
-            {article.beforeAfterMedia && (
+            {article.beforeAfterMedia?.beforeUrl && article.beforeAfterMedia?.afterUrl && (
               <BeforeAfterSlider
                 media={article.beforeAfterMedia}
                 onOpenLightbox={(url, title, caption) =>

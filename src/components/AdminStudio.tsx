@@ -1027,7 +1027,7 @@ ${draft.content}`;
                   </p>
                 )}
 
-                {draft.beforeAfterMedia && (
+                {draft.beforeAfterMedia?.beforeUrl && draft.beforeAfterMedia?.afterUrl && (
                   <BeforeAfterSlider media={draft.beforeAfterMedia} />
                 )}
 

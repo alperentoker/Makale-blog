@@ -33,6 +33,13 @@ export const INITIAL_ARTICLES: Article[] = [
       latency: 'Lokal Ölçülecek (Batch=1)',
       fps: '50 Warmup + 300 Test',
     },
+    beforeAfterMedia: {
+      beforeUrl: '/assets/thermal_raw.jpg',
+      beforeLabel: 'HAM FLIR LWIR TERMAL SENSÖR',
+      afterUrl: '/assets/thermal_detected.jpg',
+      afterLabel: 'YOLO11-S ÇİFT MODLU TESPİT HUD',
+      caption: 'FLIR LWIR Spektrumunda Hedef Ayrımı: 14-Bit kalibre edilmemiş ham sensör görüntüsü vs. YOLO11s derin öğrenme çıkarım ve telemetri kılavuzu.',
+    },
     content: `Bu belge; \`EO-IR-DualMode-Detection\` projesinde yürütülecek model eğitimlerinin, **çapraz-perspektif (Hava vs. Kara) ablasyonunun**, ağırlık doğrulamasının ve yayınlanacak nihai blog makalesinin operasyonel deney kılavuzudur.
 
 ---
