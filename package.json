@@ -8,6 +8,7 @@
     "server": "tsx server/index.ts",
     "dev:all": "tsx server/index.ts & vite",
     "build": "tsc -b && vite build",
+    "test": "tsx --test server/server.test.ts",
     "start": "NODE_ENV=production SERVE_STATIC=true tsx server/index.ts",
     "lint": "oxlint",
     "preview": "vite preview"
