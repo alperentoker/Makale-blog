@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="w-2 h-2 rounded-full bg-tactical-emerald animate-pulse" title="Sistem Aktif" />
             </div>
             <div className="font-mono text-xs tracking-wider text-ink-500 uppercase mt-1">
-              lens.alperentoker.com
+              Araştırma &amp; Mühendislik
             </div>
           </div>
         </div>

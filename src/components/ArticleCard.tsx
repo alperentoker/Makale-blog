@@ -102,16 +102,16 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, onSelect }) =
           </div>
         )}
 
-        {/* Card Footer: Authors & Read Action */}
+        {/* Card Footer: Metadata & Read Action */}
         <div className="flex items-center justify-between text-sm pt-4 border-t border-paper-200 dark:border-paper-800/80">
           <div className="flex items-center gap-2.5">
             <span className="w-2 h-2 rounded-full bg-tactical-emerald" />
-            <span className="font-semibold font-sans text-ink-900 dark:text-paper-100">
-              {article.authors.map(a => a.name).join(', ')}
+            <span className="font-medium text-xs font-mono text-ink-700 dark:text-paper-200">
+              Açık Erişim
             </span>
             <span className="text-paper-300 dark:text-paper-700">·</span>
             <span className="text-xs text-ink-500 font-mono">
-              {article.authors[0]?.affiliation || 'Araştırma'}
+              {article.authors[0]?.affiliation || 'Yapay Zeka & Bilgisayarlı Görü'}
             </span>
           </div>
 

@@ -16,7 +16,7 @@ export const ArchiveHero: React.FC<ArchiveHeroProps> = ({
         {/* Top Identity Tag */}
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-tactical-blue/10 dark:bg-tactical-blue/20 text-tactical-blue dark:text-tactical-blueLight font-mono text-xs font-semibold uppercase tracking-wider mb-6 border border-tactical-blue/20">
           <span className="w-2 h-2 rounded-full bg-tactical-blue animate-pulse" />
-          <span>LENS // ALPEREN TOKER</span>
+          <span>LENS // ARAŞTIRMA NOTLARI</span>
         </div>
 
         {/* Headline */}
