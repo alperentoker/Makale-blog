@@ -1,0 +1,292 @@
+@import "katex/dist/katex.min.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --paper-bg: #FBFBF9;
+    --paper-surface: #F5F5F0;
+    --paper-border: #E6E4DE;
+    --ink-text: #111215;
+    --ink-muted: #5A606E;
+    --tactical-blue: #2563EB;
+    --tactical-amber: #D97706;
+    --tactical-emerald: #10B981;
+    --grid-line: rgba(17, 18, 21, 0.045);
+  }
+
+  .dark {
+    --paper-bg: #0E1117;
+    --paper-surface: #11141C;
+    --paper-border: rgba(255, 255, 255, 0.08);
+    --ink-text: #F1F3F7;
+    --ink-muted: #8E96AA;
+    --tactical-blue: #3B82F6;
+    --tactical-amber: #F59E0B;
+    --tactical-emerald: #10B981;
+    --grid-line: rgba(255, 255, 255, 0.04);
+  }
+
+  body {
+    background-color: var(--paper-bg);
+    color: var(--ink-text);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "kern";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Atmospheric Tactical Drafting Grid (%4-5 Opacity + Radial Vignette Depth) */
+.bg-tactical-grid {
+  background-color: var(--paper-bg);
+  background-image: 
+    radial-gradient(ellipse 90% 50% at 50% -5%, rgba(37, 99, 235, 0.05), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 40%, rgba(217, 119, 6, 0.035), transparent 50%),
+    radial-gradient(circle at 10% 80%, rgba(16, 185, 129, 0.025), transparent 40%),
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+}
+
+.dark .bg-tactical-grid {
+  background-color: var(--paper-bg);
+  background-image: 
+    radial-gradient(ellipse 90% 50% at 50% -5%, rgba(37, 99, 235, 0.12), transparent 65%),
+    radial-gradient(ellipse 60% 40% at 90% 40%, rgba(245, 158, 11, 0.06), transparent 50%),
+    radial-gradient(circle at 10% 80%, rgba(16, 185, 129, 0.04), transparent 40%),
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+}
+
+/* Optical Corner Reticles (Tactical 1px Reticle Accents ┌ ┐) */
+.reticle-box {
+  position: relative;
+}
+.reticle-box::before,
+.reticle-box::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  pointer-events: none;
+  z-index: 10;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.reticle-box::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1.5px solid var(--tactical-amber);
+  border-left: 1.5px solid var(--tactical-amber);
+}
+.reticle-box::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1.5px solid var(--tactical-amber);
+  border-right: 1.5px solid var(--tactical-amber);
+}
+
+/* Reticle Blue variant */
+.reticle-box-blue::before {
+  border-color: var(--tactical-blue);
+}
+.reticle-box-blue::after {
+  border-color: var(--tactical-blue);
+}
+
+/* Thermal Scanline Overlay */
+.thermal-scanline {
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(0, 0, 0, 0.25) 51%
+  );
+  background-size: 100% 4px;
+}
+
+/* Custom Editorial Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(18, 19, 22, 0.15);
+  border-radius: 3px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(240, 240, 240, 0.2);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(18, 19, 22, 0.3);
+}
+
+/* Editorial Drop Cap */
+.drop-cap::first-letter {
+  font-family: 'Newsreader', Georgia, serif;
+  float: left;
+  font-size: 3.8em;
+  line-height: 0.8;
+  padding-top: 4px;
+  padding-right: 8px;
+  padding-bottom: 2px;
+  color: var(--tactical-blue);
+  font-weight: 700;
+}
+
+/* Sidenotes / Margin Notes (Distill.pub / Tufte style) */
+.sidenote {
+  font-size: 0.825rem;
+  line-height: 1.45;
+  color: #6E7485;
+  position: relative;
+}
+
+@media (min-width: 1280px) {
+  .sidenote-right {
+    float: right;
+    clear: right;
+    margin-right: -240px;
+    width: 200px;
+    margin-top: 0.2rem;
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    border-left: 2px solid #E2E4E8;
+    padding-left: 12px;
+  }
+}
+
+/* KaTeX custom tuning */
+.katex-display {
+  margin: 1.6em 0 !important;
+  padding: 1rem 1.5rem !important;
+  background: #F6F6F2;
+  border: 1px solid #E5E3DC;
+  border-radius: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.dark .katex-display {
+  background: #151821;
+  border-color: #262B38;
+}
+
+/* Subtle hairline borders */
+.border-hairline {
+  border-width: 1px;
+  border-color: rgba(18, 19, 22, 0.08);
+}
+.dark .border-hairline {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Academic Callouts (Alerts) */
+.callout {
+  margin: 1.8em 0;
+  padding: 1.15rem 1.4rem;
+  border-left-width: 3px;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.965rem;
+  line-height: 1.65;
+}
+
+.callout-note {
+  border-color: #1E3A8A;
+  background-color: #F0F4FA;
+  color: #1E293B;
+}
+.dark .callout-note {
+  background-color: #131E33;
+  color: #CBD5E1;
+  border-color: #3B82F6;
+}
+
+.callout-insight {
+  border-color: #D97706;
+  background-color: #FFFBEB;
+  color: #451A03;
+}
+.dark .callout-insight {
+  background-color: #2D1D03;
+  color: #FDE68A;
+  border-color: #F59E0B;
+}
+
+.callout-warning {
+  border-color: #DC2626;
+  background-color: #FEF2F2;
+  color: #450A0A;
+}
+.dark .callout-warning {
+  background-color: #2A0E0E;
+  color: #FECACA;
+  border-color: #EF4444;
+}
+
+.callout-theorem {
+  border-color: #059669;
+  background-color: #ECFDF5;
+  color: #064E3B;
+}
+.dark .callout-theorem {
+  background-color: #0B251B;
+  color: #A7F3D0;
+  border-color: #10B981;
+}
+
+/* IEEE PDF Mode Styling */
+.ieee-paper-sheet {
+  background: #FFFFFF;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  width: 210mm;
+  min-height: 297mm;
+  margin: 2rem auto;
+  padding: 22mm 18mm 25mm 18mm;
+  box-sizing: border-box;
+  font-family: 'Newsreader', 'Times New Roman', serif;
+  color: #111;
+  line-height: 1.35;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .ieee-paper-sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* Strict Monospace ASCII Art & Code Rules (Prevents line drifting and ligature distortion) */
+pre {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace !important;
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "calt" 0 !important;
+  letter-spacing: 0px !important;
+}
+
+/* Fullscreen fluid prose container */
+.prose-editorial {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Fullscreen / Zen Reading Mode - Hides global header seamlessly */
+.zen-fullscreen-mode .lens-global-header {
+  display: none !important;
+}
+
+
