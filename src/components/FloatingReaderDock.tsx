@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
-  BookOpen, 
   Maximize2, 
   Minimize2, 
   Moon, 
@@ -20,7 +19,6 @@ interface FloatingReaderDockProps {
   onToggleZenMode: () => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
-  onOpenCitation: () => void;
   headings: TocHeading[];
 }
 
@@ -33,7 +31,6 @@ export const FloatingReaderDock: React.FC<FloatingReaderDockProps> = ({
   onToggleZenMode,
   darkMode,
   onToggleDarkMode,
-  onOpenCitation,
   headings,
 }) => {
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -230,15 +227,6 @@ export const FloatingReaderDock: React.FC<FloatingReaderDockProps> = ({
             title="İçindekiler Dizini"
           >
             <ListOrdered className="w-4 h-4" />
-          </button>
-
-          {/* Quick Cite Button */}
-          <button
-            onClick={onOpenCitation}
-            className="p-1.5 rounded-full hover:bg-paper-200 dark:hover:bg-paper-800 text-ink-600 dark:text-paper-300 transition-colors"
-            title="BibTeX & Alıntı"
-          >
-            <BookOpen className="w-4 h-4 text-tactical-blue" />
           </button>
 
           {/* Fullscreen & Zen Mode Toggle */}

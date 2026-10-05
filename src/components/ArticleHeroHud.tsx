@@ -9,21 +9,18 @@ import {
   Clock, 
   GitBranch, 
   Share2, 
-  Check, 
-  BookOpen
+  Check
 } from 'lucide-react';
 import { Article } from '../types';
 
 interface ArticleHeroHudProps {
   article: Article;
-  onOpenCitation: () => void;
   onShare: () => void;
   copiedLink: boolean;
 }
 
 export const ArticleHeroHud: React.FC<ArticleHeroHudProps> = ({
   article,
-  onOpenCitation,
   onShare,
   copiedLink,
 }) => {
@@ -176,16 +173,6 @@ export const ArticleHeroHud: React.FC<ArticleHeroHudProps> = ({
             <GitBranch className="w-3 h-3" />
             <span>{article.version}</span>
           </span>
-
-          {/* Quick Cite Jump */}
-          <button
-            onClick={onOpenCitation}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-paper-150 dark:bg-paper-800 hover:bg-paper-200 dark:hover:bg-paper-700 text-ink-800 dark:text-paper-100 border border-paper-300 dark:border-paper-700 transition-colors text-[11px]"
-            title="BibTeX & Atıf"
-          >
-            <BookOpen className="w-3 h-3 text-tactical-blue" />
-            <span>Atıf Yap</span>
-          </button>
 
           {/* Share Button */}
           <button

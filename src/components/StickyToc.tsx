@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { TocHeading } from '../types';
-import { Crosshair, ArrowRight, BookOpen } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 
 interface StickyTocProps {
   headings: TocHeading[];
-  onOpenCitation?: () => void;
 }
 
-export const StickyToc: React.FC<StickyTocProps> = ({ headings, onOpenCitation }) => {
+export const StickyToc: React.FC<StickyTocProps> = ({ headings }) => {
   const [activeId, setActiveId] = useState<string>('');
   const [scrollProgress, setScrollProgress] = useState<number>(0);
 
@@ -114,27 +113,6 @@ export const StickyToc: React.FC<StickyTocProps> = ({ headings, onOpenCitation }
           );
         })}
       </nav>
-
-      {/* Quick Jump to Citation */}
-      <div className="mt-8 pt-4 border-t border-paper-300 dark:border-paper-800 text-[11px] font-mono text-ink-500">
-        <button
-          onClick={() => {
-            if (onOpenCitation) {
-              onOpenCitation();
-            } else {
-              const el = document.getElementById('citation-section');
-              el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-          }}
-          className="w-full hover:text-tactical-blue dark:hover:text-tactical-amber transition-colors flex items-center justify-between group text-left"
-        >
-          <div className="flex items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5 text-tactical-blue" />
-            <span>BibTeX & Atıf Modülü</span>
-          </div>
-          <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-        </button>
-      </div>
     </aside>
   );
 };

@@ -13,7 +13,6 @@ import { MarkdownContent } from '../lib/markdownRenderer';
 import { StickyToc } from './StickyToc';
 import { BeforeAfterSlider } from './BeforeAfterSlider';
 import { InteractiveTable } from './InteractiveTable';
-import { CitationCard } from './CitationCard';
 import { MediaLightbox } from './MediaLightbox';
 import { IeeePdfViewer } from './IeeePdfViewer';
 import { ArticleHeroHud } from './ArticleHeroHud';
@@ -151,17 +150,6 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
     }
   };
 
-  const handleOpenCitation = () => {
-    const el = document.getElementById('citation-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-4', 'ring-tactical-blue', 'rounded-lg', 'transition-all', 'duration-500');
-      setTimeout(() => {
-        el.classList.remove('ring-4', 'ring-tactical-blue');
-      }, 2500);
-    }
-  };
-
   // Font size CSS style mapping for dynamic text scale across all paragraphs & elements
   const fontSizeStyle = useMemo(() => {
     switch (fontSize) {
@@ -206,7 +194,6 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         onToggleZenMode={handleToggleFullscreen}
         darkMode={darkMode}
         onToggleDarkMode={handleToggleDarkMode}
-        onOpenCitation={handleOpenCitation}
         headings={headings}
       />
 
@@ -262,7 +249,6 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         {/* TACTICAL HERO HUD & MISSION TITLE SECTION */}
         <ArticleHeroHud
           article={article}
-          onOpenCitation={handleOpenCitation}
           onShare={handleCopyLink}
           copiedLink={copiedLink}
         />
@@ -390,15 +376,11 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               </div>
             )}
 
-            {/* BibTeX & Citation Section */}
-            <div id="citation-section">
-              <CitationCard article={article} />
-            </div>
           </div>
 
           {/* Tactical Sticky TOC Radar (Right Sidebar - Hidden in Fullscreen / Zen Mode) */}
           {!(zenMode || isFullscreen) && (
-            <StickyToc headings={headings} onOpenCitation={handleOpenCitation} />
+            <StickyToc headings={headings} />
           )}
         </div>
       </main>
