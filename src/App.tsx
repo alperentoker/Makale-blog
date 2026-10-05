@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { INITIAL_ARTICLES, DEMO_SEED_ARTICLES } from './data/mockArticles';
 import { Article } from './types';
 import { isAuthenticated, logout, fetchSession } from './lib/auth';
 import {
-  fetchArticles,
-  fetchArticle,
-  saveArticleApi,
-  deleteArticleApi,
-  importArticlesApi,
-  seedDemoArticlesApi,
-  wipeAllArticlesApi,
-} from './lib/api';
+  useArticles,
+  useArticle,
+  useSaveArticle,
+  useDeleteArticle,
+  useImportArticles,
+  useSeedArticles,
+  useWipeArticles,
+} from './lib/useArticles';
 import { Header } from './components/Header';
 import { ReadingProgressBar } from './components/ReadingProgressBar';
 import { ArticleList } from './components/ArticleList';
@@ -22,7 +21,7 @@ import { AlertCircle, ArrowLeft } from 'lucide-react';
 
 const AdminStudio = React.lazy(() => import('./components/AdminStudio').then(m => ({ default: m.AdminStudio })));
 
-// Route component for reading single articles by ID or Slug
+// Route component for reading single articles by ID or Slug using TanStack Query
 interface ArticleReaderPageProps {
   articles: Article[];
   onSelectArticle: (article: Article) => void;
@@ -35,7 +34,6 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
   onBackToArchive,
 }) => {
   const { idOrSlug } = useParams<{ idOrSlug: string }>();
-  const [fetchedArticle, setFetchedArticle] = useState<Article | null>(null);
 
   const matchedArticle = useMemo(() => {
     if (!idOrSlug) return null;
@@ -45,26 +43,8 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
     ) || null;
   }, [articles, idOrSlug]);
 
-  useEffect(() => {
-    if (!idOrSlug) return;
-    // If matched article already has full content, skip fetching
-    if (matchedArticle?.content && matchedArticle.content.trim()) return;
-
-    let cancelled = false;
-    const cleanParam = decodeURIComponent(idOrSlug);
-
-    fetchArticle(cleanParam)
-      .then(art => {
-        if (!cancelled) {
-          setFetchedArticle(art);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [idOrSlug, matchedArticle]);
+  const cleanParam = idOrSlug ? decodeURIComponent(idOrSlug) : undefined;
+  const { data: fetchedArticle, isLoading } = useArticle(cleanParam, matchedArticle);
 
   const activeArticle = (matchedArticle?.content && matchedArticle.content.trim())
     ? matchedArticle
@@ -73,15 +53,15 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
   useEffect(() => {
     if (activeArticle) {
       document.title = `${activeArticle.title} // LENS`;
-    } else {
+    } else if (!isLoading) {
       document.title = 'Makale Bulunamadı // LENS';
     }
     return () => {
       document.title = 'LENS // Bilgisayarlı Görü & Yapay Zeka Araştırmaları';
     };
-  }, [activeArticle]);
+  }, [activeArticle, isLoading]);
 
-  if (!activeArticle) {
+  if (!activeArticle && !isLoading) {
     return (
       <div className="py-24 text-center max-w-lg mx-auto px-4">
         <div className="w-14 h-14 rounded-2xl bg-paper-200 dark:bg-paper-800 text-tactical-amber mx-auto flex items-center justify-center mb-4 border border-paper-300 dark:border-paper-700">
@@ -100,6 +80,15 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
           <ArrowLeft className="w-4 h-4" />
           <span>Arşive Dön</span>
         </button>
+      </div>
+    );
+  }
+
+  if (!activeArticle) {
+    return (
+      <div className="py-32 text-center">
+        <div className="w-8 h-8 border-2 border-tactical-blue border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <div className="font-mono text-xs text-ink-500">Rapor Yükleniyor...</div>
       </div>
     );
   }
@@ -124,10 +113,20 @@ export const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Articles state initialized with initial articles, then synchronized with server
-  const [articles, setArticles] = useState<Article[]>(INITIAL_ARTICLES);
+  // Admin authentication state
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => isAuthenticated());
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
+
+  // TanStack Query for reactive, cached articles synchronized with server
+  const { data: articles = [] } = useArticles(isAdminAuthenticated);
+
+  // TanStack Query Mutations with optimistic updates and rollback support
+  const saveArticleMutation = useSaveArticle(isAdminAuthenticated);
+  const deleteArticleMutation = useDeleteArticle(isAdminAuthenticated);
+  const importArticlesMutation = useImportArticles();
+  const seedArticlesMutation = useSeedArticles();
+  const wipeArticlesMutation = useWipeArticles();
 
   // Dark mode state
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -138,24 +137,12 @@ export const App: React.FC = () => {
     }
   });
 
-  // Load articles from server SQLite database
-  const refreshArticles = async (adminMode?: boolean) => {
-    try {
-      const data = await fetchArticles(adminMode ? { status: undefined } : undefined);
-      if (Array.isArray(data) && data.length > 0) {
-        setArticles(data);
-      }
-    } catch (e) {
-      console.warn('[LENS] Fetching from server failed, using local state:', e);
-    }
-  };
-
+  // Check auth session on load
   useEffect(() => {
-    // Initial fetch from server
     fetchSession().then(status => {
-      refreshArticles(status.authenticated);
+      setIsAdminAuthenticated(status.authenticated);
     }).catch(() => {
-      refreshArticles(false);
+      setIsAdminAuthenticated(false);
     });
   }, []);
 
@@ -227,41 +214,23 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Save article with automatic optimistic update & rollback on error
   const handleSaveArticle = async (updatedArticle: Article) => {
     try {
-      const saved = await saveArticleApi(updatedArticle);
-      setArticles(prev => {
-        const idx = prev.findIndex(a => a.id === saved.id);
-        if (idx !== -1) {
-          const next = [...prev];
-          next[idx] = saved;
-          return next;
-        }
-        return [saved, ...prev];
-      });
+      await saveArticleMutation.mutateAsync(updatedArticle);
     } catch (e) {
-      console.error('Failed to save article on server, updating locally:', e);
-      setArticles(prev => {
-        const idx = prev.findIndex(a => a.id === updatedArticle.id);
-        if (idx !== -1) {
-          const next = [...prev];
-          next[idx] = updatedArticle;
-          return next;
-        }
-        return [updatedArticle, ...prev];
-      });
+      console.error('Failed to save article on server, state rolled back automatically:', e);
     }
   };
 
+  // Delete article with automatic optimistic update & rollback on error
   const handleDeleteArticle = async (id: string) => {
     const target = articles.find(a => a.id === id);
     try {
-      await deleteArticleApi(id);
+      await deleteArticleMutation.mutateAsync(id);
     } catch (e) {
-      console.error('Failed to delete article on server:', e);
+      console.error('Failed to delete article on server, state rolled back automatically:', e);
     }
-
-    setArticles(prev => prev.filter(a => a.id !== id));
 
     if (
       target &&
@@ -274,19 +243,17 @@ export const App: React.FC = () => {
 
   const handleImportArticles = async (newArticles: Article[]) => {
     try {
-      await importArticlesApi(newArticles);
-      await refreshArticles(true);
+      await importArticlesMutation.mutateAsync(newArticles);
     } catch (e) {
       console.error('Failed to import articles to server:', e);
-      setArticles(newArticles);
     }
   };
 
   const handleLogout = async () => {
     await logout();
+    setIsAdminAuthenticated(false);
     setIsAdminOpen(false);
     setIsLoginOpen(false);
-    await refreshArticles(false); // Reset to public published articles
     if (location.pathname === '/admin' || location.pathname === '/studio' || location.pathname === '/yonetim') {
       navigate('/');
     }
@@ -296,9 +263,9 @@ export const App: React.FC = () => {
   };
 
   const handleLoginSuccess = async () => {
+    setIsAdminAuthenticated(true);
     setIsLoginOpen(false);
     setIsAdminOpen(true);
-    await refreshArticles(true); // Load drafts for authenticated admin
   };
 
   const handleCloseLogin = () => {
@@ -323,21 +290,18 @@ export const App: React.FC = () => {
 
   const handleSeedDemoData = async () => {
     try {
-      await seedDemoArticlesApi();
-      await refreshArticles(true);
+      await seedArticlesMutation.mutateAsync();
     } catch (e) {
       console.error('Failed to seed demo data on server:', e);
-      setArticles(DEMO_SEED_ARTICLES);
     }
   };
 
   const handleWipeAllArticles = async () => {
     try {
-      await wipeAllArticlesApi();
+      await wipeArticlesMutation.mutateAsync();
     } catch (e) {
       console.error('Failed to wipe articles on server:', e);
     }
-    setArticles([]);
     navigate('/');
   };
 

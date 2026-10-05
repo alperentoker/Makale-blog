@@ -64,6 +64,7 @@ export interface Article {
   beforeAfterMedia?: BeforeAfterMedia;
   tables?: TableData[];
   telemetry?: ArticleTelemetry;
+  searchSnippet?: string;
 }
 
 export interface TocHeading {

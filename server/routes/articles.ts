@@ -52,7 +52,9 @@ articlesRouter.get('/', (req: Request, res: Response) => {
   if (ftsQuery) {
     try {
       let query = `
-        SELECT ${selectFields}, bm25(articles_fts, 5.0, 3.0, 2.0, 2.0, 1.0) AS rank
+        SELECT ${selectFields},
+               bm25(articles_fts, 5.0, 3.0, 2.0, 2.0, 1.0) AS rank,
+               snippet(articles_fts, -1, '<mark class="lens-search-hit">', '</mark>', '...', 28) AS searchSnippet
         FROM articles a
         JOIN articles_fts ON articles_fts.id = a.id
         WHERE articles_fts MATCH ?
@@ -270,4 +272,218 @@ articlesRouter.post('/seed', requireAuth, (_req: Request, res: Response) => {
 articlesRouter.post('/wipe', requireAuth, (_req: Request, res: Response) => {
   db.prepare('DELETE FROM articles').run();
   res.json({ success: true, message: 'Tüm makaleler veritabanından silindi.' });
+});
+
+// 9. POST /api/articles/resolve-academic — Automatic paper ingestion via DOI or arXiv ID (Admin only)
+articlesRouter.post('/resolve-academic', requireAuth, async (req: Request, res: Response) => {
+  const { identifier } = req.body as { identifier?: string };
+
+  if (!identifier || typeof identifier !== 'string' || !identifier.trim()) {
+    res.status(400).json({ error: 'Geçerli bir DOI veya arXiv kimliği (identifier) belirtilmelidir.' });
+    return;
+  }
+
+  const raw = identifier.trim();
+
+  // 9.1 Detect arXiv ID (e.g. 2304.05310, arxiv:2304.05310, https://arxiv.org/abs/2304.05310)
+  const arxivMatch = raw.match(/(\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z]{2})?\/\d{7})/i);
+  if (arxivMatch && (raw.includes('arxiv') || /^\d{4}\.\d{4,5}/.test(raw))) {
+    const arxivId = arxivMatch[1];
+    try {
+      const apiUrl = `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(arxivId)}`;
+      const apiRes = await fetch(apiUrl, {
+        headers: { 'User-Agent': 'LENS-CMS/1.0 (academic-resolver)' },
+      });
+
+      if (!apiRes.ok) {
+        res.status(502).json({ error: `arXiv API yanıt vermedi: HTTP ${apiRes.status}` });
+        return;
+      }
+
+      const xmlText = await apiRes.text();
+      if (!xmlText.includes('<entry>') || xmlText.includes('Error')) {
+        res.status(404).json({ error: `arXiv makalesi bulunamadı (${arxivId}).` });
+        return;
+      }
+
+      // Extract title
+      const titleMatch = xmlText.match(/<title>([\s\S]*?)<\/title>/g);
+      const rawTitle = titleMatch && titleMatch[1] ? titleMatch[1].replace(/<\/?title>/g, '').replace(/\s+/g, ' ').trim() : 'arXiv Makalesi';
+
+      // Extract summary / abstract
+      const summaryMatch = xmlText.match(/<summary>([\s\S]*?)<\/summary>/);
+      const rawAbstract = summaryMatch ? summaryMatch[1].replace(/\s+/g, ' ').trim() : '';
+
+      // Extract published date
+      const dateMatch = xmlText.match(/<published>([\s\S]*?)<\/published>/);
+      const isoDate = dateMatch ? dateMatch[1].split('T')[0] : new Date().toISOString().split('T')[0];
+      const pubYear = isoDate.split('-')[0];
+
+      // Extract authors
+      const authors: Array<{ name: string; affiliation: string; role?: string }> = [];
+      const authorRegex = /<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g;
+      let aMatch: RegExpExecArray | null;
+      while ((aMatch = authorRegex.exec(xmlText)) !== null) {
+        const name = aMatch[1].trim();
+        if (name) {
+          authors.push({ name, affiliation: 'Araştırmacı', role: 'Yazar' });
+        }
+      }
+
+      // Extract DOI if available
+      const doiMatch = xmlText.match(/<arxiv:doi[^>]*>([\s\S]*?)<\/arxiv:doi>/);
+      const doi = doiMatch ? doiMatch[1].trim() : `10.48550/arXiv.${arxivId}`;
+
+      // Generate clean BibTeX
+      const bibKey = `arxiv_${arxivId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const bibtex = `@article{${bibKey},
+  title={${rawTitle}},
+  author={${authors.map(a => a.name).join(' and ') || 'Anonim'}},
+  journal={arXiv preprint arXiv:${arxivId}},
+  year={${pubYear}},
+  url={https://arxiv.org/abs/${arxivId}}
+}`;
+
+      const generatedContent = `# ${rawTitle}
+
+## (${rawTitle.slice(0, 80)}...)
+
+${rawAbstract}
+
+### 1. Giriş ve Arka Plan
+
+Bu çalışma, **arXiv:${arxivId}** önbaskısı üzerinden LENS sistemine otomatik olarak aktarılmıştır.
+
+> [!NOTE]
+> Bu makale arXiv üzerinden otomatik çekilmiştir. Tam analiz bulgularını ve deneysel parametreleri aşağıda düzenleyebilirsiniz.
+
+### 2. Metodoloji ve Bulgular
+
+- **Birincil Model Mimarisi:** Belirtilmedi
+- **Kaynak DOI:** ${doi}
+`;
+
+      res.json({
+        success: true,
+        source: 'arxiv',
+        metadata: {
+          title: rawTitle,
+          dek: `${rawTitle.slice(0, 90)}...`,
+          abstract: rawAbstract,
+          authors: authors.length > 0 ? authors : [{ name: 'Alperen Toker', affiliation: 'LENS' }],
+          date: isoDate,
+          doi,
+          bibtex,
+          category: 'Kenar Yapay Zeka',
+          tags: ['arXiv', 'Yapay Zeka', 'Akademik'],
+          content: generatedContent,
+        },
+      });
+      return;
+    } catch (err: any) {
+      res.status(500).json({ error: `arXiv metadata çekilemedi: ${err.message}` });
+      return;
+    }
+  }
+
+  // 9.2 Detect DOI (e.g. 10.1109/TPAMI.2023.1234567 or doi.org/...)
+  const cleanDoi = raw
+    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '')
+    .replace(/^doi:\s*/i, '')
+    .trim();
+
+  if (/^10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+$/i.test(cleanDoi)) {
+    try {
+      const crossrefUrl = `https://api.crossref.org/works/${encodeURIComponent(cleanDoi)}`;
+      const crossRes = await fetch(crossrefUrl, {
+        headers: {
+          'User-Agent': 'LENS-CMS/1.0 (mailto:admin@lens-research.local)',
+        },
+      });
+
+      if (!crossRes.ok) {
+        res.status(404).json({ error: `Crossref DOI kaydı bulunamadı (HTTP ${crossRes.status}).` });
+        return;
+      }
+
+      const crossData = (await crossRes.json()) as any;
+      const work = crossData.message;
+
+      const rawTitle = work.title && work.title[0] ? work.title[0].replace(/\s+/g, ' ').trim() : 'Akademik Yayın';
+      let rawAbstract = '';
+      if (work.abstract) {
+        rawAbstract = work.abstract.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      }
+
+      const dateParts = work.published?.['date-parts']?.[0] || work['published-print']?.['date-parts']?.[0] || [new Date().getFullYear(), 1, 1];
+      const pubYear = dateParts[0] || new Date().getFullYear();
+      const pubMonth = String(dateParts[1] || 1).padStart(2, '0');
+      const pubDay = String(dateParts[2] || 1).padStart(2, '0');
+      const isoDate = `${pubYear}-${pubMonth}-${pubDay}`;
+
+      const authors: Array<{ name: string; affiliation: string; role?: string }> = [];
+      if (Array.isArray(work.author)) {
+        for (const a of work.author) {
+          const fullName = [a.given, a.family].filter(Boolean).join(' ') || a.name || 'Araştırmacı';
+          const aff = a.affiliation?.[0]?.name || 'Akademik Kurum';
+          authors.push({ name: fullName, affiliation: aff, role: 'Yazar' });
+        }
+      }
+
+      const journal = work['container-title']?.[0] || 'IEEE / Uluslararası Hakemli Dergi';
+      const bibKey = `doi_${cleanDoi.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const bibtex = `@article{${bibKey},
+  title={${rawTitle}},
+  author={${authors.map(a => a.name).join(' and ') || 'Anonim'}},
+  journal={${journal}},
+  year={${pubYear}},
+  doi={${cleanDoi}}
+}`;
+
+      const generatedContent = `# ${rawTitle}
+
+## (${journal} // ${pubYear})
+
+${rawAbstract || 'Özet metni Crossref kaydında bulunamadı.'}
+
+### 1. Çalışma Özeti ve Referans
+
+Bu makale **${cleanDoi}** DOI numarası ile ${journal} bünyesinde taranmıştır.
+
+> [!INSIGHT]
+> DOI kaydı Crossref üzerinden çekilmiştir.
+
+### 2. Metodoloji ve Teknik Bulgular
+
+- **Yayın Organı:** ${journal}
+- **Yayın Yılı:** ${pubYear}
+- **DOI Bağlantısı:** https://doi.org/${cleanDoi}
+`;
+
+      res.json({
+        success: true,
+        source: 'crossref',
+        metadata: {
+          title: rawTitle,
+          dek: `${journal} // ${pubYear}`,
+          abstract: rawAbstract,
+          authors: authors.length > 0 ? authors : [{ name: 'Alperen Toker', affiliation: 'LENS' }],
+          date: isoDate,
+          doi: cleanDoi,
+          bibtex,
+          category: 'Veri Mühendisliği',
+          tags: ['DOI', 'Peer-Reviewed', 'Akademik'],
+          content: generatedContent,
+        },
+      });
+      return;
+    } catch (err: any) {
+      res.status(500).json({ error: `DOI kaydı çözülemedi: ${err.message}` });
+      return;
+    }
+  }
+
+  res.status(400).json({
+    error: 'Geçersiz format. Lütfen geçerli bir arXiv ID (örn: 2304.05310) veya DOI (örn: 10.1109/TPAMI.2023.1234567) girin.',
+  });
 });

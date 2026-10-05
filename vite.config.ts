@@ -20,4 +20,28 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/katex')) {
+            return 'katex';
+          }
+          if (id.includes('node_modules/pdfjs-dist')) {
+            return 'pdfjs';
+          }
+          if (
+            id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router-dom') ||
+            id.includes('node_modules/@tanstack') ||
+            id.includes('node_modules/lucide-react')
+          ) {
+            return 'vendor';
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 })

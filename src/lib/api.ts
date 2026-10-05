@@ -227,3 +227,26 @@ export async function logoutApi(): Promise<void> {
     credentials: 'include',
   }).catch(() => {});
 }
+
+// 13. Resolve Academic Identifier (arXiv ID or DOI)
+export interface AcademicMetadataResult {
+  success: boolean;
+  source: 'arxiv' | 'crossref';
+  metadata: Partial<Article>;
+  error?: string;
+}
+
+export async function resolveAcademicIdentifierApi(identifier: string): Promise<AcademicMetadataResult> {
+  const res = await fetch(`${API_BASE}/articles/resolve-academic`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ identifier }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Akademik metadata çözülemedi.');
+  }
+  return data;
+}

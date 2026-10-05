@@ -72,19 +72,26 @@ export async function verifyMasterPassword(password: string): Promise<boolean> {
   return verifyPassword(password, hashRow.value, saltRow.value);
 }
 
-// Create new session token in DB
+// Compute SHA-256 hash of a session token for secure database storage
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Create new session token in DB (stores SHA-256 digest, returns raw token to client)
 export function createSession(): string {
   const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(token);
   const now = Date.now();
   const expiresAt = now + SESSION_TTL_MS;
 
-  db.prepare('INSERT INTO sessions (token, created_at, expires_at) VALUES (?, ?, ?)').run(token, now, expiresAt);
+  db.prepare('INSERT INTO sessions (token, created_at, expires_at) VALUES (?, ?, ?)').run(tokenHash, now, expiresAt);
   return token;
 }
 
 // Invalidate session token
 export function destroySession(token: string): void {
-  db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  const tokenHash = hashToken(token);
+  db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
 }
 
 // Invalidate all active sessions (e.g. on password change)
@@ -170,7 +177,8 @@ export function authenticateUser(req: Request, _res: Response, next: NextFunctio
     return next();
   }
 
-  const session = db.prepare('SELECT expires_at FROM sessions WHERE token = ?').get(token) as { expires_at: number } | undefined;
+  const tokenHash = hashToken(token);
+  const session = db.prepare('SELECT expires_at FROM sessions WHERE token = ?').get(tokenHash) as { expires_at: number } | undefined;
 
   if (session && session.expires_at > Date.now()) {
     req.authenticated = true;

@@ -115,7 +115,20 @@ try {
   console.warn('[LENS DB] FTS sync notice:', e);
 }
 
-// Database row to Article mapper
+// Safe JSON parser to protect against corrupted database rows or migration anomalies
+export function safeJsonParse<T>(jsonString: unknown, fallback: T): T {
+  if (typeof jsonString !== 'string' || !jsonString.trim()) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(jsonString) as T;
+  } catch (err) {
+    console.warn('[LENS DB] Corrupted JSON detected, safely falling back:', err);
+    return fallback;
+  }
+}
+
+// Database row to Article mapper with resilient error isolation
 export function rowToArticle(row: any): Article {
   return {
     id: row.id,
@@ -123,30 +136,29 @@ export function rowToArticle(row: any): Article {
     title: row.title,
     dek: row.dek || '',
     abstract: row.abstract || '',
-    authors: JSON.parse(row.authors || '[]'),
+    authors: safeJsonParse(row.authors, []),
     date: row.date,
     displayDate: row.displayDate || '',
     readingTime: row.readingTime || '',
     version: row.version || '',
     category: row.category,
-    tags: JSON.parse(row.tags || '[]'),
+    tags: safeJsonParse(row.tags, []),
     status: row.status,
     doi: row.doi || '',
-    keywords: JSON.parse(row.keywords || '[]'),
-    telemetry: JSON.parse(row.telemetry || '{}'),
-    tables: JSON.parse(row.tables || '[]'),
+    keywords: safeJsonParse(row.keywords, []),
+    telemetry: safeJsonParse(row.telemetry, {}),
+    tables: safeJsonParse(row.tables, []),
     beforeAfterMedia: (() => {
-      try {
-        if (!row.beforeAfterMedia || row.beforeAfterMedia === '{}') return undefined;
-        const parsed = JSON.parse(row.beforeAfterMedia);
-        return parsed && parsed.beforeUrl && parsed.afterUrl ? parsed : undefined;
-      } catch {
-        return undefined;
-      }
+      const parsed = safeJsonParse<any>(row.beforeAfterMedia, null);
+      return parsed && parsed.beforeUrl && parsed.afterUrl ? parsed : undefined;
     })(),
-    series: row.series && row.series !== '{}' ? JSON.parse(row.series) : undefined,
+    series: (() => {
+      const parsed = safeJsonParse<any>(row.series, null);
+      return parsed && parsed.id ? parsed : undefined;
+    })(),
     bibtex: row.bibtex || '',
     content: row.content,
+    searchSnippet: row.searchSnippet || undefined,
   };
 }
 

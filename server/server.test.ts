@@ -4,7 +4,9 @@ import { db, saveArticle, rowToArticle } from './db.ts';
 import {
   hashPassword,
   verifyPassword,
+  hashToken,
   createSession,
+  destroySession,
   destroyAllSessions,
   checkRateLimit,
   recordFailedAttempt,
@@ -104,12 +106,15 @@ test('5. Session: Token Generation and Expiration Tracking', () => {
   const token = createSession();
   assert.ok(token && token.length === 64, 'Session token should be 32-byte hex (64 chars)');
 
-  const sessionRow = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token) as { expires_at: number } | undefined;
-  assert.ok(sessionRow, 'Session must exist in database');
+  const tokenHash = hashToken(token);
+  const sessionRow = db.prepare('SELECT * FROM sessions WHERE token = ?').get(tokenHash) as { expires_at: number } | undefined;
+  assert.ok(sessionRow, 'Session must exist in database with hashed token');
   assert.ok(sessionRow.expires_at > Date.now(), 'Session expiration must be in the future');
 
   // Clean up
-  db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  destroySession(token);
+  const afterDelete = db.prepare('SELECT * FROM sessions WHERE token = ?').get(tokenHash);
+  assert.equal(afterDelete, undefined, 'Session must be deleted from database');
 });
 
 test('6. Session Security: Global Invalidation of All Sessions', () => {
@@ -165,5 +170,42 @@ test('7. Search Engine: SQLite FTS5 Full-Text Search & Trigger Sync', () => {
   db.prepare('DELETE FROM articles WHERE id = ?').run(ftsTestId);
   const ftsAfterDelete = db.prepare('SELECT COUNT(*) as count FROM articles_fts WHERE id = ?').get(ftsTestId) as { count: number };
   assert.equal(ftsAfterDelete.count, 0, 'FTS5 delete trigger must remove entry on article deletion');
+});
+
+test('8. Error Isolation: Resilient rowToArticle with Corrupted JSON', () => {
+  const corruptRow = {
+    id: 'corrupt-row-test',
+    slug: 'corrupt-row-test',
+    title: 'Bozuk JSON Test Makalesi',
+    dek: '',
+    abstract: '',
+    authors: '{not-valid-json',
+    date: '2026-10-05',
+    displayDate: '',
+    readingTime: '',
+    version: '',
+    category: 'Termal Görüntüleme',
+    tags: '["ValidTag", invalid_json',
+    status: 'published',
+    doi: '',
+    keywords: null,
+    telemetry: 'undefined',
+    tables: '[{broken}]',
+    beforeAfterMedia: 'bad',
+    series: 'broken',
+    bibtex: '',
+    content: 'Test content',
+  };
+
+  // Should NOT throw an exception, must safely fallback to defaults
+  const parsed = rowToArticle(corruptRow);
+  assert.equal(parsed.id, 'corrupt-row-test');
+  assert.deepEqual(parsed.authors, []);
+  assert.deepEqual(parsed.tags, []);
+  assert.deepEqual(parsed.keywords, []);
+  assert.deepEqual(parsed.telemetry, {});
+  assert.deepEqual(parsed.tables, []);
+  assert.equal(parsed.beforeAfterMedia, undefined);
+  assert.equal(parsed.series, undefined);
 });
 

@@ -302,4 +302,17 @@ pre {
   display: none !important;
 }
 
+/* FTS5 Full-Text Search Highlight Tag */
+.lens-search-hit {
+  background-color: rgba(245, 158, 11, 0.24);
+  color: #b45309;
+  font-weight: 600;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+.dark .lens-search-hit {
+  background-color: rgba(245, 158, 11, 0.32);
+  color: #fbbf24;
+}
+
 

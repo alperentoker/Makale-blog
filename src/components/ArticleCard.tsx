@@ -87,6 +87,14 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({ article, onSelect }) =
           {article.dek}
         </p>
 
+        {/* FTS5 Match Highlight Snippet (Instant Context Preview) */}
+        {article.searchSnippet && (
+          <div className="my-2.5 px-3 py-2 rounded-md bg-amber-500/5 dark:bg-amber-500/10 border-l-2 border-tactical-amber font-mono text-xs text-ink-800 dark:text-paper-200">
+            <span className="text-[10px] uppercase font-bold text-tactical-amber mr-2">İÇERİK EŞLEŞMESİ:</span>
+            <span dangerouslySetInnerHTML={{ __html: article.searchSnippet }} />
+          </div>
+        )}
+
         {/* Tags Row */}
         {article.tags.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
