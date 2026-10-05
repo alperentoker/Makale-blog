@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Check, Download, BookOpen, ExternalLink } from 'lucide-react';
 import { Article } from '../types';
 import { generateBibtex, generateIeeeCitation, generateApaCitation } from '../lib/citation';
+import { copyToClipboard } from '../lib/clipboard';
 
 interface CitationCardProps {
   article: Article;
@@ -27,24 +28,27 @@ export const CitationCard: React.FC<CitationCardProps> = ({ article }) => {
   };
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(getCurrentText());
+    const success = await copyToClipboard(getCurrentText());
+    if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy text', err);
     }
   };
 
   const downloadBibtexFile = () => {
-    const blob = new Blob([bibtexCode], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${article.slug}.bib`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const blob = new Blob([bibtexCode], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${article.slug || 'citation'}.bib`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 200);
+    } catch (err) {
+      console.error('Failed to download bib file:', err);
+    }
   };
 
   return (

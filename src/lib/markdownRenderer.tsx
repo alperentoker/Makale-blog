@@ -1,5 +1,6 @@
 import React from 'react';
 import { renderKaTeX, renderInlineMarkdown, slugify } from './parser';
+import { copyToClipboard } from './clipboard';
 import { 
   Info, 
   AlertTriangle, 
@@ -26,10 +27,12 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({
 }) => {
   const [copiedIdx, setCopiedIdx] = React.useState<number | null>(null);
 
-  const handleCopyCode = (code: string, idx: number) => {
-    navigator.clipboard.writeText(code);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 2000);
+  const handleCopyCode = async (code: string, idx: number) => {
+    const success = await copyToClipboard(code);
+    if (success) {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 2000);
+    }
   };
 
   const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');

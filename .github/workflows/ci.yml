@@ -1,10 +1,10 @@
-name: LENS CI
+name: LENS CI/CD
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   verify:
@@ -32,3 +32,25 @@ jobs:
 
       - name: Production Bundle Compilation
         run: npm run build
+
+  deploy:
+    name: Deploy to VPS
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Remote SSH Deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            cd /var/www/lens-blog
+            git pull origin main
+            npm ci --prefer-offline --no-audit
+            npm run build
+            pm2 restart lens-api --update-env || pm2 start "npm run server" --name lens-api
+            pm2 save

@@ -18,6 +18,7 @@ import { MediaLightbox } from './MediaLightbox';
 import { IeeePdfViewer } from './IeeePdfViewer';
 import { ArticleHeroHud } from './ArticleHeroHud';
 import { FloatingReaderDock } from './FloatingReaderDock';
+import { copyToClipboard } from '../lib/clipboard';
 
 interface ArticleReaderProps {
   article: Article;
@@ -132,10 +133,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
     return seriesArticles.find(a => (a.series?.stepNumber || 0) === currentStep - 1) || null;
   }, [article.series, seriesArticles]);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+  const handleCopyLink = async () => {
+    const success = await copyToClipboard(window.location.href);
+    if (success) {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
   };
 
   const handleToggleDarkMode = () => {
@@ -151,7 +154,11 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   const handleOpenCitation = () => {
     const el = document.getElementById('citation-section');
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-4', 'ring-tactical-blue', 'rounded-lg', 'transition-all', 'duration-500');
+      setTimeout(() => {
+        el.classList.remove('ring-4', 'ring-tactical-blue');
+      }, 2500);
     }
   };
 
@@ -391,7 +398,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
 
           {/* Tactical Sticky TOC Radar (Right Sidebar - Hidden in Fullscreen / Zen Mode) */}
           {!(zenMode || isFullscreen) && (
-            <StickyToc headings={headings} />
+            <StickyToc headings={headings} onOpenCitation={handleOpenCitation} />
           )}
         </div>
       </main>
