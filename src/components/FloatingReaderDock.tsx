@@ -6,7 +6,9 @@ import {
   Moon, 
   Sun, 
   ListOrdered, 
-  ArrowUp
+  ArrowUp,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { TocHeading } from '../types';
 
@@ -35,8 +37,7 @@ export const FloatingReaderDock: React.FC<FloatingReaderDockProps> = ({
 }) => {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isTocOpen, setIsTocOpen] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const [isHidden, setIsHidden] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,21 +46,11 @@ export const FloatingReaderDock: React.FC<FloatingReaderDockProps> = ({
         const currentProgress = Math.min(100, Math.max(0, (window.scrollY / totalHeight) * 100));
         setScrollProgress(Math.round(currentProgress));
       }
-
-      // Hide dock slightly when scrolling down fast, show on scroll up
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > 200 && currentScrollY > lastScrollY + 15) {
-        setIsVisible(false);
-        setIsTocOpen(false);
-      } else if (currentScrollY < lastScrollY - 8 || currentScrollY < 150) {
-        setIsVisible(true);
-      }
-      setLastScrollY(currentScrollY);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, []);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -110,11 +101,43 @@ export const FloatingReaderDock: React.FC<FloatingReaderDockProps> = ({
       {/* FLOATING GLASS DOCK (Fixed Bottom Center) */}
       <aside 
         aria-label="Okuma Denetim Çubuğu"
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
-        }`}
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300"
       >
-        <div className="flex items-center gap-1 sm:gap-1.5 px-3 py-2 rounded-full border border-paper-300/80 dark:border-white/10 bg-white/85 dark:bg-paper-900/85 backdrop-blur-xl shadow-glass-dock text-ink-800 dark:text-paper-100 select-none">
+        {isHidden ? (
+          <button
+            onClick={() => setIsHidden(false)}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-paper-300/80 dark:border-white/10 bg-white/95 dark:bg-paper-900/95 backdrop-blur-xl shadow-glass-dock text-ink-800 dark:text-paper-100 hover:scale-105 hover:bg-paper-100 dark:hover:bg-paper-800 transition-all text-xs font-mono group"
+            title="Okuma Menüsünü Aç"
+            aria-label="Okuma Menüsünü Aç"
+          >
+            <div className="relative w-4 h-4 flex items-center justify-center">
+              <svg className="w-4 h-4 -rotate-90">
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6"
+                  className="stroke-paper-300 dark:stroke-paper-700 fill-none"
+                  strokeWidth="2"
+                />
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6"
+                  className="stroke-tactical-blue fill-none transition-all duration-150"
+                  strokeWidth="2"
+                  strokeDasharray="38"
+                  strokeDashoffset={38 - (38 * scrollProgress) / 100}
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <span className="font-semibold text-[11px] text-ink-900 dark:text-paper-100">%{scrollProgress}</span>
+            <span className="w-px h-3 bg-paper-300 dark:bg-white/10" />
+            <span className="text-[11px] font-medium text-ink-600 dark:text-paper-300">Menü</span>
+            <ChevronUp className="w-3.5 h-3.5 text-tactical-blue group-hover:-translate-y-0.5 transition-transform" />
+          </button>
+        ) : (
+          <div className="flex items-center gap-1 sm:gap-1.5 px-3 py-2 rounded-full border border-paper-300/80 dark:border-white/10 bg-white/85 dark:bg-paper-900/85 backdrop-blur-xl shadow-glass-dock text-ink-800 dark:text-paper-100 select-none animate-in fade-in zoom-in-95 duration-200">
           
           {/* Scroll Progress Dial */}
           <button
@@ -251,8 +274,24 @@ export const FloatingReaderDock: React.FC<FloatingReaderDockProps> = ({
           >
             {darkMode ? <Sun className="w-4 h-4 text-tactical-amber" /> : <Moon className="w-4 h-4" />}
           </button>
+
+          <span className="w-px h-4 bg-paper-300 dark:bg-white/10 mx-0.5" />
+
+          {/* Hide / Collapse Dock Button */}
+          <button
+            onClick={() => {
+              setIsHidden(true);
+              setIsTocOpen(false);
+            }}
+            className="p-1.5 rounded-full hover:bg-paper-200 dark:hover:bg-paper-800 text-ink-400 hover:text-ink-900 dark:text-paper-400 dark:hover:text-white transition-colors"
+            title="Menüyü Gizle"
+            aria-label="Menüyü Gizle"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
         </div>
-      </aside>
+      )}
+    </aside>
     </>
   );
 };
