@@ -18,11 +18,6 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
   const [palette, setPalette] = useState<PaletteMode>('standard');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Defensive guard: Never mount or render blank frame if media URLs are missing
-  if (!media || !media.beforeUrl || !media.afterUrl) {
-    return null;
-  }
-
   const handleMove = useCallback(
     (clientX: number) => {
       if (!containerRef.current) return;
@@ -63,6 +58,11 @@ export const BeforeAfterSlider: React.FC<BeforeAfterSliderProps> = ({
     }
     return 'none';
   };
+
+  // Defensive guard: Never mount or render blank frame if media URLs are missing
+  if (!media || !media.beforeUrl || !media.afterUrl) {
+    return null;
+  }
 
   return (
     <figure className="my-12 w-full select-none">
