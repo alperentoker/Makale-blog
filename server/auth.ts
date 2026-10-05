@@ -83,6 +83,11 @@ export function destroySession(token: string): void {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
 
+// Invalidate all active sessions (e.g. on password change)
+export function destroyAllSessions(): void {
+  db.prepare('DELETE FROM sessions').run();
+}
+
 // Clean up expired sessions periodically
 export function cleanExpiredSessions(): void {
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());

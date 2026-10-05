@@ -95,6 +95,7 @@ server {
     client_max_body_size 15M;
 
     # Güvenlik Başlıkları
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options    "nosniff" always;
     add_header X-Frame-Options           "SAMEORIGIN" always;
     add_header X-XSS-Protection          "1; mode=block" always;
@@ -122,6 +123,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_read_timeout 60s;
     }
 
@@ -130,12 +132,24 @@ server {
         proxy_pass http://lens_backend/sitemap.xml;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
     }
 
     location = /robots.txt {
         proxy_pass http://lens_backend/robots.txt;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # Gizli dosyalara erişim engeli (.env, .git vb.)
+    location ~ /\.(?!well-known) {
+        deny all;
+        return 403;
     }
 
     # Statik Varlık Önbellekleme
@@ -148,13 +162,6 @@ server {
     # SPA Yönlendirmesi (React Router)
     location / {
         try_files $uri $uri/ /index.html;
-    }
-
-    # Gizli dosyalara erişim engeli
-    location ~ /\. {
-        deny all;
-        access_log off;
-        log_not_found off;
     }
 }
 ```

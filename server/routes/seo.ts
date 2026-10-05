@@ -3,10 +3,19 @@ import { db } from '../db.ts';
 
 export const seoRouter = Router();
 
-const SITE_URL = process.env.SITE_URL || 'https://lens.alperentoker.com';
+// Helper to resolve site URL dynamically matching incoming request or configured environment
+function getSiteUrl(req: Request): string {
+  const host = (req.headers['x-forwarded-host'] as string) || req.get('host');
+  if (host) {
+    const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+    return `${proto}://${host}`;
+  }
+  return (process.env.SITE_URL || 'https://lens.alperentoker.com').replace(/\/$/, '');
+}
 
 // 1. Dynamic XML Sitemap
-seoRouter.get('/sitemap.xml', (_req: Request, res: Response) => {
+seoRouter.get('/sitemap.xml', (req: Request, res: Response) => {
+  const siteUrl = getSiteUrl(req);
   const articles = db.prepare(`
     SELECT slug, date, updated_at
     FROM articles
@@ -21,7 +30,7 @@ seoRouter.get('/sitemap.xml', (_req: Request, res: Response) => {
 
   // Home / Archive
   xml += `  <url>\n`;
-  xml += `    <loc>${SITE_URL}/</loc>\n`;
+  xml += `    <loc>${siteUrl}/</loc>\n`;
   xml += `    <lastmod>${today}</lastmod>\n`;
   xml += `    <changefreq>daily</changefreq>\n`;
   xml += `    <priority>1.0</priority>\n`;
@@ -34,7 +43,7 @@ seoRouter.get('/sitemap.xml', (_req: Request, res: Response) => {
       : art.date || today;
 
     xml += `  <url>\n`;
-    xml += `    <loc>${SITE_URL}/article/${encodeURIComponent(art.slug)}</loc>\n`;
+    xml += `    <loc>${siteUrl}/article/${encodeURIComponent(art.slug)}</loc>\n`;
     xml += `    <lastmod>${lastMod}</lastmod>\n`;
     xml += `    <changefreq>weekly</changefreq>\n`;
     xml += `    <priority>0.8</priority>\n`;
@@ -48,7 +57,8 @@ seoRouter.get('/sitemap.xml', (_req: Request, res: Response) => {
 });
 
 // 2. Robots.txt
-seoRouter.get('/robots.txt', (_req: Request, res: Response) => {
+seoRouter.get('/robots.txt', (req: Request, res: Response) => {
+  const siteUrl = getSiteUrl(req);
   const txt = `# LENS // Robots.txt
 User-agent: *
 Allow: /
@@ -57,7 +67,7 @@ Disallow: /studio
 Disallow: /yonetim
 Disallow: /api/
 
-Sitemap: ${SITE_URL}/sitemap.xml
+Sitemap: ${siteUrl}/sitemap.xml
 `;
   res.header('Content-Type', 'text/plain');
   res.send(txt);

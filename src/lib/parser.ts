@@ -169,6 +169,15 @@ export function extractHeadings(markdown: string): TocHeading[] {
   return headings;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export function renderKaTeX(latex: string, displayMode: boolean = false): string {
   try {
     return katex.renderToString(latex, {
@@ -178,7 +187,7 @@ export function renderKaTeX(latex: string, displayMode: boolean = false): string
     });
   } catch (err) {
     console.error('KaTeX rendering error:', err);
-    return `<code class="font-mono text-tactical-amber bg-paper-200 px-1 py-0.5 rounded text-sm">${latex}</code>`;
+    return `<code class="font-mono text-tactical-amber bg-paper-200 px-1 py-0.5 rounded text-sm">${escapeHtml(latex)}</code>`;
   }
 }
 

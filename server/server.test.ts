@@ -5,6 +5,7 @@ import {
   hashPassword,
   verifyPassword,
   createSession,
+  destroyAllSessions,
   checkRateLimit,
   recordFailedAttempt,
   resetRateLimit,
@@ -109,4 +110,15 @@ test('5. Session: Token Generation and Expiration Tracking', () => {
 
   // Clean up
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+});
+
+test('6. Session Security: Global Invalidation of All Sessions', () => {
+  const t1 = createSession();
+  const t2 = createSession();
+  assert.ok(t1 && t2);
+
+  destroyAllSessions();
+
+  const countRow = db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number };
+  assert.equal(countRow.count, 0, 'All sessions must be wiped on destroyAllSessions');
 });

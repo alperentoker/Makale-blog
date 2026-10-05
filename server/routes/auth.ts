@@ -5,6 +5,7 @@ import {
   verifyMasterPassword,
   createSession,
   destroySession,
+  destroyAllSessions,
   checkRateLimit,
   recordFailedAttempt,
   resetRateLimit,
@@ -13,13 +14,9 @@ import {
 
 export const authRouter = Router();
 
-// Helper to determine client IP
+// Helper to determine client IP (relies on Express trust proxy for spoof-safe IP)
 function getClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.socket.remoteAddress || '127.0.0.1';
+  return req.ip || req.socket.remoteAddress || '127.0.0.1';
 }
 
 // 1. Auth Status Check
@@ -129,7 +126,6 @@ authRouter.post('/login', (req: Request, res: Response) => {
     success: true,
     message: 'Giriş başarılı.',
     authenticated: true,
-    token, // For clients preferring header auth
   });
 });
 
@@ -154,7 +150,24 @@ authRouter.post('/change-password', requireAuth, (req: Request, res: Response) =
   }
 
   setMasterPassword(newPassword);
-  res.json({ success: true, message: 'Parola başarıyla güncellendi.' });
+
+  // Invalidate all existing sessions across devices
+  destroyAllSessions();
+
+  // Issue a fresh session for the current authenticated user
+  const newSessionToken = createSession();
+  res.cookie('lens_session', newSessionToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+
+  res.json({
+    success: true,
+    message: 'Parola başarıyla güncellendi. Diğer tüm aktif oturumlar sonlandırıldı.',
+  });
 });
 
 // 5. Logout
