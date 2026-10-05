@@ -126,6 +126,19 @@
   background: rgba(18, 19, 22, 0.3);
 }
 
+/* Hide scrollbars for overflow-x-auto containers (iOS/Android/Firefox/Chrome) */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Editorial Drop Cap */
 .drop-cap::first-letter {
   font-family: 'Newsreader', Georgia, serif;

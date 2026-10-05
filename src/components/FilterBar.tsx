@@ -41,11 +41,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   }, []);
 
   return (
-    <section className="relative my-7 max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
-      <div className="p-2.5 sm:p-3 rounded-2xl border border-paper-300 dark:border-paper-800 bg-white/85 dark:bg-paper-850/85 backdrop-blur-md shadow-tactical-card flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+    <section className="relative my-4 sm:my-5 max-w-[1720px] w-full mx-auto px-4 sm:px-8 lg:px-12">
+      <div className="p-1.5 sm:p-2 rounded-xl border border-paper-300/80 dark:border-paper-800/80 bg-white/85 dark:bg-paper-850/85 backdrop-blur-md shadow-tactical-card flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4">
         
-        {/* Left: Segmented Control Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-paper-150/90 dark:bg-paper-900/90 rounded-xl border border-paper-200 dark:border-paper-800/80 scrollbar-none">
+        {/* Left: Compact Pill Category Buttons with Subtle Borders */}
+        <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-paper-150/70 dark:bg-paper-900/70 rounded-lg border border-paper-200/80 dark:border-paper-800/70 scrollbar-none">
           {categories.map(category => {
             const isSelected = selectedCategory === category;
             const count = categoryCounts[category] ?? 0;
@@ -54,18 +54,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               <button
                 key={category}
                 onClick={() => onSelectCategory(category)}
-                className={`relative flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-mono transition-all duration-150 whitespace-nowrap select-none ${
+                className={`relative flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-md text-xs font-mono transition-all duration-150 whitespace-nowrap select-none border ${
                   isSelected
-                    ? 'bg-white dark:bg-paper-800 text-ink-950 dark:text-paper-50 font-semibold shadow-sm border border-paper-300/80 dark:border-paper-700/80'
-                    : 'text-ink-600 dark:text-ink-400 hover:text-ink-900 dark:hover:text-paper-200 hover:bg-white/40 dark:hover:bg-paper-800/40'
+                    ? 'bg-white dark:bg-paper-800 text-ink-950 dark:text-paper-50 font-semibold shadow-xs border-paper-300/90 dark:border-paper-700'
+                    : 'text-ink-600 dark:text-ink-400 border-transparent hover:border-paper-300/60 dark:hover:border-paper-700/60 hover:text-ink-950 dark:hover:text-paper-200 hover:bg-white/60 dark:hover:bg-paper-800/50'
                 }`}
               >
                 <span>{category}</span>
                 <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-mono transition-colors ${
+                  className={`text-[11px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${
                     isSelected
                       ? 'bg-tactical-blue/15 text-tactical-blue dark:text-blue-300 font-bold'
-                      : 'bg-paper-200 dark:bg-paper-800 text-ink-500 dark:text-ink-400 font-medium'
+                      : 'bg-paper-200/80 dark:bg-paper-800/80 text-ink-500 dark:text-ink-400 font-medium'
                   }`}
                 >
                   {count}
@@ -75,31 +75,31 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           })}
         </div>
 
-        {/* Right: Modern Search Input */}
+        {/* Right: Modern Compact Search Input in Visual Rhythm with Pills */}
         <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-72">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500 pointer-events-none" />
+          <div className="relative flex-1 sm:w-72 md:w-80">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500 pointer-events-none" />
             <input
               ref={searchInputRef}
               type="text"
               placeholder="Başlık, etiket veya terim ara..."
               value={searchQuery}
               onChange={e => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-12 py-2 text-xs sm:text-sm bg-paper-150/80 dark:bg-paper-900/80 border border-paper-300/80 dark:border-paper-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-tactical-blue dark:focus:ring-tactical-blue focus:bg-white dark:focus:bg-paper-900 font-sans text-ink-950 dark:text-paper-50 placeholder:text-ink-400 transition-all"
+              className="w-full h-[34px] pl-9 pr-11 py-1.5 text-xs bg-paper-150/70 dark:bg-paper-900/70 border border-paper-300/80 dark:border-paper-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-tactical-blue dark:focus:ring-tactical-blue focus:bg-white dark:focus:bg-paper-900 font-sans text-ink-950 dark:text-paper-50 placeholder:text-ink-400 transition-all"
             />
 
             {/* Clear button or Keyboard Shortcut hint */}
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {searchQuery ? (
                 <button
                   onClick={() => onSearchChange('')}
-                  className="p-1 rounded-md text-ink-400 hover:text-ink-700 dark:hover:text-paper-200 transition-colors"
+                  className="p-1 rounded text-ink-400 hover:text-ink-700 dark:hover:text-paper-200 transition-colors"
                   title="Aramayı Temizle"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               ) : (
-                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-xs font-mono text-ink-400 dark:text-ink-500 bg-white/80 dark:bg-paper-800/80 border border-paper-300/60 dark:border-paper-700/60 rounded">
+                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-ink-400 dark:text-ink-500 bg-white/80 dark:bg-paper-800/80 border border-paper-300/60 dark:border-paper-700/60 rounded">
                   /
                 </kbd>
               )}
@@ -110,7 +110,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
       {/* Filter status strip (if active filtering) */}
       {(searchQuery.trim() || selectedCategory !== 'Tümü') && (
-        <div className="mt-3 px-3 flex items-center justify-between text-xs font-mono text-ink-600 dark:text-ink-300">
+        <div className="mt-2 px-2 flex items-center justify-between text-xs font-mono text-ink-600 dark:text-ink-300">
           <div className="flex items-center gap-2">
             <Filter className="w-3.5 h-3.5 text-tactical-blue" />
             <span>Filtrelenen:</span>
