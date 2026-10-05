@@ -209,3 +209,38 @@ test('8. Error Isolation: Resilient rowToArticle with Corrupted JSON', () => {
   assert.equal(parsed.series, undefined);
 });
 
+test('9. Search Engine: Multi-Article FTS5 Keyword Matching', () => {
+  // Query for 'TensorRT' should match the quantization article
+  const tensorRtMatches = db.prepare(`
+    SELECT a.id, a.title FROM articles a
+    JOIN articles_fts ON articles_fts.id = a.id
+    WHERE articles_fts MATCH '"TensorRT"*'
+  `).all() as { id: string; title: string }[];
+
+  assert.ok(tensorRtMatches.length >= 1, 'Search for TensorRT must return at least 1 match');
+  assert.ok(tensorRtMatches.some(m => m.id === 'art-tensorrt-quantization'), 'TensorRT article must be in matches');
+
+  // Query for 'LWIR' should match the sensor fusion article
+  const lwirMatches = db.prepare(`
+    SELECT a.id, a.title FROM articles a
+    JOIN articles_fts ON articles_fts.id = a.id
+    WHERE articles_fts MATCH '"LWIR"*'
+  `).all() as { id: string; title: string }[];
+
+  assert.ok(lwirMatches.length >= 1, 'Search for LWIR must return at least 1 match');
+  assert.ok(lwirMatches.some(m => m.id === 'art-sensor-fusion-lwir'), 'LWIR fusion article must be in matches');
+});
+
+test('10. Sessions: Persistent SQLite Storage & Expiration Verification', () => {
+  const token = createSession();
+  const tokenHash = hashToken(token);
+
+  const row = db.prepare('SELECT expires_at FROM sessions WHERE token = ?').get(tokenHash) as { expires_at: number } | undefined;
+  assert.ok(row, 'Session token must exist in SQLite sessions table');
+  assert.ok(row.expires_at > Date.now(), 'Session must expire in future');
+
+  destroySession(token);
+  const rowAfter = db.prepare('SELECT expires_at FROM sessions WHERE token = ?').get(tokenHash);
+  assert.equal(rowAfter, undefined, 'Session token must be deleted from SQLite upon destroy');
+});
+

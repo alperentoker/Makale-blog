@@ -6,6 +6,7 @@ import {
   Crosshair
 } from 'lucide-react';
 import { Article } from '../types';
+import { useArticles } from '../lib/useArticles';
 import { ArchiveHero } from './ArchiveHero';
 import { ArticleCard } from './ArticleCard';
 import { FilterBar } from './FilterBar';
@@ -50,7 +51,22 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     setSearchParams(next, { replace: true });
   };
 
-  // Dynamic categories based on articles present
+  const [debouncedQuery, setDebouncedQuery] = React.useState(searchQuery);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Query backend SQLite FTS5 index for high-speed full-text search with BM25 ranking
+  const { data: serverArticles, isFetching: isSearching } = useArticles({
+    category: selectedCategory,
+    q: debouncedQuery,
+  });
+
+  // Dynamic categories based on full articles list
   const categories = useMemo(() => {
     const baseCats = ['Tümü'];
     const articleCats = Array.from(new Set(articles.map(a => a.category).filter(Boolean)));
@@ -70,26 +86,8 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     return counts;
   }, [articles, categories]);
 
-  // Filtered articles computation
-  const filteredArticles = useMemo(() => {
-    return articles.filter(art => {
-      // Category filter
-      if (selectedCategory !== 'Tümü' && art.category !== selectedCategory) {
-        return false;
-      }
-      // Search query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesTitle = art.title.toLowerCase().includes(q);
-        const matchesDek = art.dek.toLowerCase().includes(q);
-        const matchesTags = art.tags.some(t => t.toLowerCase().includes(q));
-        const matchesKeywords = art.keywords?.some(k => k.toLowerCase().includes(q)) ?? false;
-        const matchesAuthor = art.authors.some(a => a.name.toLowerCase().includes(q));
-        return matchesTitle || matchesDek || matchesTags || matchesAuthor || matchesKeywords;
-      }
-      return true;
-    });
-  }, [articles, selectedCategory, searchQuery]);
+  // Use server articles when available, or fallback to full list
+  const activeArticles = serverArticles || articles;
 
   return (
     <div className="min-h-screen bg-paper-100 dark:bg-paper-900 text-ink-900 dark:text-paper-100 bg-tactical-grid pb-28 transition-colors duration-150">
@@ -107,7 +105,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
           categoryCounts={categoryCounts}
-          filteredCount={filteredArticles.length}
+          filteredCount={activeArticles.length}
           totalCount={articles.length}
         />
       )}
@@ -130,7 +128,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
               Bilgisayarlı görü ve yapay zeka modelleri üzerine yeni teknik raporlar yakında sisteme eklenecektir.
             </p>
           </div>
-        ) : filteredArticles.length === 0 ? (
+        ) : activeArticles.length === 0 ? (
           /* No Search Match State */
           <div className="reticle-box py-16 px-6 text-center rounded-xl border border-dashed border-paper-300 dark:border-paper-800 bg-white/40 dark:bg-paper-850/40">
             <Crosshair className="w-8 h-8 text-tactical-amber mx-auto mb-2.5 opacity-80" />
@@ -152,17 +150,22 @@ export const ArticleList: React.FC<ArticleListProps> = ({
           <div className="space-y-4 sm:space-y-4.5">
             {/* Feed Section Header with count */}
             <div className="flex items-center justify-between pb-2 text-xs font-mono text-ink-600 dark:text-ink-400 border-b border-paper-200/80 dark:border-paper-800/80">
-              <span className="flex items-center gap-1.5 uppercase font-bold text-ink-900 dark:text-paper-100">
+              <span className="flex items-center gap-2 uppercase font-bold text-ink-900 dark:text-paper-100">
                 <Layers className="w-3.5 h-3.5 text-tactical-blue" />
-                <span>YAYINLANAN RAPORLAR ({filteredArticles.length})</span>
+                <span>YAYINLANAN RAPORLAR ({activeArticles.length})</span>
+                {isSearching && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] bg-tactical-blue/10 text-tactical-blue dark:text-tactical-cyan border border-tactical-blue/20 animate-pulse font-normal">
+                    FTS5 taranıyor...
+                  </span>
+                )}
               </span>
               <span className="font-mono text-[11px] text-ink-400">
-                KRONOLOJİK SIRALAMA
+                {searchQuery ? 'BM25 ALAKA DÜZEYİNE GÖRE' : 'KRONOLOJİK SIRALAMA'}
               </span>
             </div>
 
             {/* List of Tactical Article Cards */}
-            {filteredArticles.map(article => (
+            {activeArticles.map((article: Article) => (
               <ArticleCard
                 key={article.id}
                 article={article}

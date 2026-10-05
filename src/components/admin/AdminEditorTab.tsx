@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Plus, 
   Download, 
   Tag, 
-  Sliders 
+  Sliders,
+  Image as ImageIcon,
+  Loader2
 } from 'lucide-react';
 import { Article, PublicationStatus } from '../../types';
 import { estimateReadingTime } from '../../lib/parser';
 import { MarkdownContent } from '../../lib/markdownRenderer';
 import { BeforeAfterSlider } from '../BeforeAfterSlider';
 import { InteractiveTable } from '../InteractiveTable';
+import { uploadImageApi } from '../../lib/api';
 
 interface AdminEditorTabProps {
   draft: Article;
@@ -31,6 +34,25 @@ export const AdminEditorTab: React.FC<AdminEditorTabProps> = ({
   onExportMarkdown,
 }) => {
   const [newTagInput, setNewTagInput] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingImage(true);
+      const res = await uploadImageApi(file);
+      const imageMarkdown = `\n\n![${file.name.replace(/\.[^/.]+$/, '')}](${res.url})\n*Şekil: ${file.name.replace(/\.[^/.]+$/, '')} deneysel görseli.*\n\n`;
+      insertText(imageMarkdown);
+    } catch (err: any) {
+      alert(`Görsel yüklenemedi: ${err.message || 'Bilinmeyen hata'}`);
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleAddTag = (tagToAdd: string) => {
     const trimmed = tagToAdd.trim();
@@ -219,6 +241,27 @@ export const AdminEditorTab: React.FC<AdminEditorTabProps> = ({
             title="Kod Bloğu"
           >
             Kod
+          </button>
+          <span className="w-[1px] h-4 bg-paper-300 dark:bg-paper-700 mx-1" />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageFileChange}
+            accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingImage}
+            className="px-2 py-1 rounded hover:bg-paper-200 dark:hover:bg-paper-700 text-emerald-700 dark:text-emerald-400 font-mono flex items-center gap-1 text-[11px]"
+            title="Görsel Yükle (data/uploads dizinine kaydeder ve markdown ekler)"
+          >
+            {isUploadingImage ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+            ) : (
+              <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+            )}
+            <span>Görsel Yükle</span>
           </button>
         </div>
 

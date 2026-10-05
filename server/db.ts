@@ -233,17 +233,18 @@ export function saveArticle(art: Article): Article {
   return art;
 }
 
-// Auto-seed initial articles if database is empty
-const countStmt = db.prepare('SELECT COUNT(*) as count FROM articles');
-const { count } = countStmt.get() as { count: number };
-
-if (count === 0 && INITIAL_ARTICLES.length > 0) {
-  console.log(`[LENS DB] Initializing database with ${INITIAL_ARTICLES.length} seed articles...`);
-  const insertMany = db.transaction((articles: Article[]) => {
+// Auto-seed missing initial articles if not present in database
+if (INITIAL_ARTICLES.length > 0) {
+  const checkStmt = db.prepare('SELECT id FROM articles WHERE id = ?');
+  const insertTransaction = db.transaction((articles: Article[]) => {
     for (const art of articles) {
-      saveArticle(art);
+      const existing = checkStmt.get(art.id);
+      if (!existing) {
+        console.log(`[LENS DB] Seeding missing flagship article: ${art.title}`);
+        saveArticle(art);
+      }
     }
   });
-  insertMany(INITIAL_ARTICLES);
-  console.log('[LENS DB] Seed completed successfully.');
+  insertTransaction(INITIAL_ARTICLES);
 }
+

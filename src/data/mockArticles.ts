@@ -385,8 +385,209 @@ $$
   journal   = {LENS: Savunma ve Bilgisayarlı Görü Araştırma Yayınları},
   year      = {2026}
 }`,
+  },
+  {
+    id: 'art-yolo11-vs-dfine',
+    slug: 'yolo11-vs-dfine-taktik-iha-gercek-zamanli-tespit-kiyaslamasi',
+    title: 'YOLO11 vs. D-FINE: Taktik İHA Platformlarında Gerçek Zamanlı Nesne Tespiti Kıyaslaması',
+    dek: 'NMS-Free Mimari · Dağılım İnce Ayarı · Gecikme-Doğruluk Pareto Analizi · Jetson Orin Benchmark',
+    abstract: 'Bu çalışmada, son dönemin öne çıkan NMS-free nesne tespit mimarisi D-FINE ile YOLO11 serisi; sınırlandırılmış SWaP-C (Boyut, Ağırlık, Güç ve Maliyet) bütçesine sahip İHA donanımlarında doğruluk, çıkarım gecikmesi ve küçük hedef tespit başarımı açısından deneysel olarak kıyaslanmaktadır.',
+    authors: [
+      {
+        name: 'Alperen Toker',
+        affiliation: 'Yapay Zeka & Bilgisayarlı Görü',
+        role: 'Baş Araştırmacı',
+      }
+    ],
+    date: '2026-10-04',
+    displayDate: '4 Ekim 2026',
+    readingTime: '11 dk okuma süresi',
+    version: 'v1.2 - Benchmark Raporu',
+    category: 'Derin Öğrenme',
+    tags: ['YOLO11', 'D-FINE', 'NMS-Free', 'Nesne Tespiti', 'Jetson Orin', 'Real-Time'],
+    status: 'published',
+    doi: 'LENS-RR-2026-002',
+    keywords: ['YOLO11', 'D-FINE', 'Object Detection', 'NMS-Free', 'Edge AI', 'Jetson AGX Orin', 'Bounding Box Regression'],
+    telemetry: {
+      hardware: 'NVIDIA Jetson AGX Orin (64GB)',
+      resolution: '640×640 (FP16)',
+      sensor: 'Sony IMX477 RGB Gimbal',
+      modelArch: 'D-FINE-S vs. YOLO11-S',
+      accuracy: 'mAP@50: %81.4 vs %79.8',
+      latency: 'D-FINE: 6.8ms · YOLO11: 5.9ms',
+      fps: '147 FPS vs 169 FPS',
+    },
+    content: `## 🎯 Giriş ve Motivasyon
+
+Taktik İHA ve mini gimbal sistemlerinde nesne tespiti gerçekleştirirken karşılaşılan en büyük darboğaz, geleneksel **Non-Maximum Suppression (NMS)** ardıl işlem (post-processing) adımının donanım hızlandırıcılarda paralel çalıştırılamamasıdır.
+
+D-FINE, sınırlayıcı kutu regresyonunu katı koordinat kestirimi yerine olasılık dağılımı ince ayarı (Fine-grained Distribution Refinement - FDR) üzerinden ele alarak NMS ihtiyacını ortadan kaldıran uçtan uca (end-to-end) bir DETR türevidir.
+
+---
+
+\`\`\`text
+MİMARİ ÇIKARIM HATTI KARŞILAŞTIRMASI
+
+[Giriş: 640x640x3] 
+       │
+       ├──► [YOLO11 Backbone] ──► [C3k2/SPPF] ──► [Decoupled Head] ──► [CUDA NMS] (Gecikme Değişken)
+       │
+       └──► [D-FINE Backbone] ──► [Hybrid Encoder] ──► [FDR Transformer Head] ──► [Doğrudan Kutu] (Sabit Gecikme)
+\`\`\`
+
+---
+
+## 📊 Deneysel Kıyaslama ve Sonuçlar
+
+Testler 14.403 bağımsız test karesi üzerinde, **NVIDIA Jetson AGX Orin** platformunda FP16 TensorRT motorları kullanılarak icra edilmiştir:
+
+| Model Mimarisi | Parametre (M) | FLOPs (G) | mAP@50 (% ) | mAP@50-95 (% ) | Orin Gecikme (ms) | Kararlılık |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **YOLOv8-S** | 11.2 | 28.6 | 76.2 | 52.4 | 6.2 ms | Standart NMS |
+| **YOLO11-S** | 9.4 | 21.5 | 79.8 | 56.1 | 5.9 ms | Hızlı, Düşük Bellek |
+| **D-FINE-S** | 10.3 | 24.8 | **81.4** | **58.7** | 6.8 ms | NMS-Free, Yüksek Küçük Nesne Başarımı |
+
+### 📐 Olasılık Dağılımı İnce Ayar Fonksiyonu:
+$$
+\\mathcal{L}_{FDR} = \\sum_{i=1}^{4} \\text{KL}\\left( P(b_i) \\,\\|\\, Q(b_i) \\right) + \\lambda \\cdot \\mathcal{L}_{IoU}(B_{pred}, B_{gt})
+$$
+
+D-FINE'ın özellikle yüksek irtifadan çekilen İHA görüntülerinde örtüşen araç gruplarını ayrıştırmada YOLO11'e kıyasla **+3.2 mAP@50-95** avantaj sağladığı doğrulanmıştır.`,
+    bibtex: `@article{toker2026yolo11dfine,
+  author    = {Alperen Toker},
+  title     = {YOLO11 vs. D-FINE: Taktik İHA Platformlarında Gerçek Zamanlı Nesne Tespiti Kıyaslaması},
+  journal   = {LENS: Savunma ve Bilgisayarlı Görü Araştırma Yayınları},
+  year      = {2026}
+}`,
+  },
+  {
+    id: 'art-sensor-fusion-lwir',
+    slug: 'cok-kipli-sensor-fuzyonu-lwir-termal-ve-rgb-gorunur-dalga-boyu',
+    title: 'Çok Kipli Sensör Füzyonu: Uzun Dalga Termal (LWIR) ve RGB Erken vs. Geç Füzyon Analizi',
+    dek: 'Çapraz-Dikkat Mekanizması · Gece/Sis/Kamuflaj Senaryoları · Eşzamanlı Spektral Kayıt Doğrulaması',
+    abstract: 'Termal (8-14 µm) ve görünür ışık (0.4-0.7 µm) sensörlerinin birlikte kullanılması; sis, gece, doğrudan güneş parlaması ve kamuflaj koşullarında hedef tespitini olanaklı kılmaktadır. Bu makalede Erken (Piksel), Orta (Özellik/Feature) ve Geç (Karar) füzyon mimarileri ablasyon testleriyle incelenmektedir.',
+    authors: [
+      {
+        name: 'Alperen Toker',
+        affiliation: 'LENS Sensör Füzyon Laboratuvarı',
+        role: 'Araştırmacı',
+      }
+    ],
+    date: '2026-10-03',
+    displayDate: '3 Ekim 2026',
+    readingTime: '13 dk okuma süresi',
+    version: 'v1.0 - Araştırma Raporu',
+    category: 'Sensör Füzyonu',
+    tags: ['Sensör Füzyonu', 'LWIR', 'Termal Görüntüleme', 'RGB-T', 'Cross-Attention', 'FLIR'],
+    status: 'published',
+    doi: 'LENS-RR-2026-003',
+    keywords: ['Multimodal Fusion', 'LWIR', 'RGB-T', 'Thermal Vision', 'Cross-Modal Attention', 'KAIST Dataset'],
+    telemetry: {
+      hardware: 'Dual Flir Boson 640 + Global Shutter RGB',
+      resolution: '640×512 (Termal) + 1920×1080 (RGB)',
+      sensor: 'Çift Bant Senkron Gimbal',
+      modelArch: 'Cross-Modal Transformer (CMT)',
+      accuracy: 'Gece mAP: %86.7 (RGB Tek Başına: %19.2)',
+      latency: 'Toplam Füzyon Hattı: 11.2ms',
+      fps: '89 FPS',
+    },
+    content: `## 🌌 Spektral Tamamlayıcılık ve Zorlu Ortam Koşulları
+
+Görünür ışık kameraları (RGB) zengin doku, renk ve yüksek uzamsal çözünürlük sağlarken; aydınlatmanın sıfıra indiği gece ortamlarında, sis veya duman arkasında işlevsiz kalmaktadır. Uzun Dalga Kızılötesi (LWIR - 8 ila 14 µm) sensörler ise objelerin yaydığı kara cisim ışımasını tespit ederek mutlak karanlıkta üstün kontrast sunar.
+
+---
+
+### 🔬 Üç Farklı Füzyon Paradigmaları
+
+1. **Erken (Piksel Düzeyinde) Füzyon:** RGB ve IR kanalları doğrudan birleştirilerek $N \\times M \\times 4$ tensör elde edilir. Hızlıdır ancak sensörler arasındaki küçük paralaks hatalarına karşı aşırı kırılgandır.
+2. **Orta Düzey (Özellik - Feature-Level) Çapraz-Dikkat:** İki ayrı omurga (Backbone) ağı ile çıkarılan öznitelik haritaları, Cross-Attention katmanları üzerinden dinamik ağırlıklandırılır.
+3. **Geç (Karar Düzeyinde) Füzyon:** İki bağımsız tespit modelinin tahminleri Bayesian olasılık modeli veya Non-Maximum Merging ile birleştirilir.
+
+$$
+\\mathbf{Z}_{fused} = \\text{Softmax}\\left(\\frac{\\mathbf{Q}_{RGB} \\mathbf{K}_{IR}^T}{\\sqrt{d_k}}\\right) \\mathbf{V}_{IR} + \\mathbf{F}_{RGB}
+$$
+
+---
+
+## 📈 Ablasyon Tablosu (FLIR & KAIST Kıyaslaması)
+
+| Senaryo | Yalnızca RGB | Yalnızca LWIR | Erken Füzyon (4-Kanal) | Çapraz-Dikkat Orta Füzyon |
+| :--- | :---: | :---: | :---: | :---: |
+| **Gündüz Açık Hava** | **84.3%** | 71.2% | 82.0% | **88.1%** |
+| **Tam Gece (0 Lux)** | 19.2% | 79.5% | 76.1% | **86.7%** |
+| **Yoğun Sis / Duman** | 24.5% | 74.0% | 70.8% | **82.4%** |
+| **Güneş Parlaması (Glare)** | 38.0% | 77.3% | 74.2% | **84.9%** |
+
+Orta düzey öznitelik füzyonu, tüm senaryolarda en yüksek kararlılığı sağlamış ve tek modaliteli modellere göre gece şartlarında **+67.5 mAP** sıçrama yaratmıştır.`,
+    bibtex: `@article{toker2026fusion,
+  author    = {Alperen Toker},
+  title     = {Çok Kipli Sensör Füzyonu: Uzun Dalga Termal (LWIR) ve RGB Erken vs. Geç Füzyon Analizi},
+  journal   = {LENS: Savunma ve Bilgisayarlı Görü Araştırma Yayınları},
+  year      = {2026}
+}`,
+  },
+  {
+    id: 'art-tensorrt-quantization',
+    slug: 'edge-gpu-tensorrt-fp16-int8-kuantizasyon-ablasyonu',
+    title: 'Edge GPU Platformlarında TensorRT FP16 ve INT8 Kuantizasyon Kayıp Ablasyonu',
+    dek: 'PTQ vs. QAT · Entropi Kalibrasyonu · Layer-wise Hassasiyet Ayrıştırması · Enerji Verimliliği (FPS/Watt)',
+    abstract: 'Uç birim yapay zeka çıkarımlarında gecikmeyi düşürmek ve FPS/Watt verimliliğini maksimize etmek için uygulanan FP16 ve INT8 kuantizasyonlarının derin öğrenme modellerindeki mAP kaybı deneysel olarak ölçülmüştür. INT8 kalibrasyonunda SmoothQuant ve KL-Divergence entropi yöntemleri incelenmektedir.',
+    authors: [
+      {
+        name: 'Alperen Toker',
+        affiliation: 'Gömülü Sistemler ve Optimizasyon',
+        role: 'Araştırmacı & Yazar',
+      }
+    ],
+    date: '2026-10-05',
+    displayDate: '5 Ekim 2026',
+    readingTime: '9 dk okuma süresi',
+    version: 'v1.1 - Optimizasyon Kılavuzu',
+    category: 'Model Optimizasyonu',
+    tags: ['TensorRT', 'INT8', 'FP16', 'Kuantizasyon', 'Jetson Orin', 'FPS-Watt'],
+    status: 'published',
+    doi: 'LENS-RR-2026-004',
+    keywords: ['TensorRT', 'Quantization', 'INT8 Calibration', 'Jetson', 'Edge Computing', 'Efficiency'],
+    telemetry: {
+      hardware: 'Jetson Orin Nano (8GB - 15W Modu)',
+      resolution: '640×640 (Batch Size = 1)',
+      sensor: 'Sentetik Test & FLIR Benchmark',
+      modelArch: 'YOLO11-S Engine',
+      accuracy: 'FP32: 80.1% · FP16: 80.0% · INT8: 78.8%',
+      latency: 'FP32: 18.2ms · FP16: 6.4ms · INT8: 3.1ms',
+      fps: 'INT8 ile 322 FPS (5.8x Hızlanma)',
+    },
+    content: `## ⚡ Kuantizasyon Temelleri: FP32'den INT8'e Geçiş
+
+Edge AI platformlarında kısıtlı güç ve termal zarf (Thermal Design Power - TDP) altında yüksek FPS elde etmek için ağırlık ve aktivasyon tensörleri 32-bit kayan noktadan (FP32) 8-bit tam sayıya (INT8) dönüştürülür:
+
+$$
+q = \\text{clip}\\left( \\left\\lfloor \\frac{x}{S} \\right\\rceil + Z, -128, 127 \\right)
+$$
+
+Burada $S$ ölçekleme faktörü (scale), $Z$ ise sıfır noktası (zero point) değeridir.
+
+---
+
+## 🔬 TensorRT Kuantizasyon Deneyleri (Jetson Orin Nano - 15W)
+
+| Hassasiyet Seviyesi | Çıkarım Süresi (ms) | FPS | Bellek Ayak İzi (MB) | mAP@50 (%) | Güç Tüketimi (Watt) | Verimlilik (FPS/Watt) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **PyTorch FP32** | 22.4 ms | 44 | 480 MB | 80.1% | 14.8 W | 2.97 |
+| **TensorRT FP32** | 18.2 ms | 55 | 320 MB | 80.1% | 14.2 W | 3.87 |
+| **TensorRT FP16** | 6.4 ms | 156 | 160 MB | 80.0% *(Δ-0.1)* | 12.1 W | 12.89 |
+| **TensorRT INT8 (PTQ)** | **3.1 ms** | **322** | **95 MB** | 78.8% *(Δ-1.3)* | **9.4 W** | **34.25 🚀** |
+
+INT8 kuantizasyon sayesinde, doğruluktan sadece **%1.3 mAP** ödün verilerek enerji verimliliğinde **11.5 kat** artış sağlanmıştır.`,
+    bibtex: `@article{toker2026quantization,
+  author    = {Alperen Toker},
+  title     = {Edge GPU Platformlarında TensorRT FP16 ve INT8 Kuantizasyon Kayıp Ablasyonu},
+  journal   = {LENS: Savunma ve Bilgisayarlı Görü Araştırma Yayınları},
+  year      = {2026}
+}`,
   }
 ];
 
 // Optional demo seed articles (accessible from inside Admin Studio if needed)
 export const DEMO_SEED_ARTICLES: Article[] = INITIAL_ARTICLES;
+

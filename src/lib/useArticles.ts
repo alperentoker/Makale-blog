@@ -13,16 +13,50 @@ import {
 
 export const ARTICLES_QUERY_KEY = 'articles';
 
-// 1. Hook to fetch and cache all articles with TanStack Query
-export function useArticles(adminMode: boolean = false) {
+export interface UseArticlesOptions {
+  adminMode?: boolean;
+  category?: string;
+  q?: string;
+}
+
+// 1. Hook to fetch and cache articles with SQLite FTS5 search and category filters
+export function useArticles(optionsOrAdmin: boolean | UseArticlesOptions = false) {
+  const options: UseArticlesOptions =
+    typeof optionsOrAdmin === 'boolean' ? { adminMode: optionsOrAdmin } : optionsOrAdmin;
+
+  const { adminMode = false, category, q } = options;
+  const isFiltered = !!(category && category !== 'Tümü') || !!(q && q.trim());
+
   return useQuery({
-    queryKey: [ARTICLES_QUERY_KEY, { admin: adminMode }],
+    queryKey: [ARTICLES_QUERY_KEY, { admin: adminMode, category: category || 'all', q: q || '' }],
     queryFn: async () => {
-      const data = await fetchArticles(adminMode ? { status: undefined } : undefined);
-      return Array.isArray(data) && data.length > 0 ? data : INITIAL_ARTICLES;
+      try {
+        const data = await fetchArticles({
+          category: category && category !== 'Tümü' ? category : undefined,
+          q: q?.trim() || undefined,
+          status: adminMode ? undefined : 'published',
+        });
+        return Array.isArray(data) ? data : [];
+      } catch (err) {
+        console.warn('[LENS] Backend fetchArticles failed, falling back to initial data:', err);
+        let fallback = [...INITIAL_ARTICLES];
+        if (category && category !== 'Tümü') {
+          fallback = fallback.filter(a => a.category === category);
+        }
+        if (q && q.trim()) {
+          const lower = q.toLowerCase();
+          fallback = fallback.filter(
+            a =>
+              a.title.toLowerCase().includes(lower) ||
+              a.dek.toLowerCase().includes(lower) ||
+              a.tags.some(t => t.toLowerCase().includes(lower))
+          );
+        }
+        return fallback;
+      }
     },
-    initialData: INITIAL_ARTICLES,
-    staleTime: 1000 * 60 * 3, // 3 minutes cache freshness
+    initialData: isFiltered ? undefined : INITIAL_ARTICLES,
+    staleTime: 1000 * 60 * 2, // 2 minutes cache freshness
   });
 }
 

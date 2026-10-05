@@ -239,7 +239,7 @@ export interface AcademicMetadataResult {
 export async function resolveAcademicIdentifierApi(identifier: string): Promise<AcademicMetadataResult> {
   const res = await fetch(`${API_BASE}/articles/resolve-academic`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     credentials: 'include',
     body: JSON.stringify({ identifier }),
   });
@@ -250,3 +250,46 @@ export async function resolveAcademicIdentifierApi(identifier: string): Promise<
   }
   return data;
 }
+
+// 14. Upload Image for Articles
+export interface UploadResult {
+  success: boolean;
+  url: string;
+  fileName: string;
+  size: number;
+}
+
+export async function uploadImageApi(file: File): Promise<UploadResult> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Dosya okunamadı.'));
+    reader.onload = async () => {
+      try {
+        const base64Data = reader.result as string;
+        const res = await fetch(`${API_BASE}/upload`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            image: base64Data,
+            filename: file.name,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || 'Görsel yüklenemedi.');
+        }
+
+        resolve(data);
+      } catch (e) {
+        reject(e);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+

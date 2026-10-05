@@ -38,6 +38,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+import { uploadRouter } from './routes/upload.ts';
+
 // 4. Block access to hidden/dotfiles (.env, .git, etc.)
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.path.startsWith('/.') || req.path.includes('/.')) {
@@ -47,11 +49,47 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// 5. CSRF & Mutation Origin Verification Middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
+  if (!isMutation) return next();
+
+  // Allow requests containing custom header or matching origin
+  const customHeader = req.headers['x-requested-with'] || req.headers['x-lens-csrf'];
+  const origin = req.headers.origin;
+  const host = req.headers.host;
+
+  if (customHeader) {
+    return next();
+  }
+
+  if (origin && host) {
+    const originHost = origin.replace(/^https?:\/\//i, '');
+    if (originHost === host) {
+      return next();
+    }
+  }
+
+  // Allow localhost during development or test
+  if (process.env.NODE_ENV !== 'production' || !origin) {
+    return next();
+  }
+
+  res.status(403).json({ error: 'CSRF koruması: Geçersiz veya eksik doğrulama başlığı.' });
+});
+
 // Standard Middlewares
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(authenticateUser);
+
+// Static Uploads Serving
+const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'data', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // SEO Routes at root: /sitemap.xml & /robots.txt
 app.use('/', seoRouter);
@@ -59,6 +97,7 @@ app.use('/', seoRouter);
 // API Routes
 app.use('/api/auth', authRouter);
 app.use('/api/articles', articlesRouter);
+app.use('/api/upload', uploadRouter);
 
 // Healthcheck Route (Public returns only status; detailed metrics restricted to authenticated admin)
 app.get('/api/health', (req: Request, res: Response) => {
