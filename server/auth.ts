@@ -1,6 +1,10 @@
 import crypto from 'crypto';
+import util from 'util';
 import { Request, Response, NextFunction } from 'express';
 import { db } from './db.ts';
+
+// Promisified scrypt to avoid blocking the event loop during password operations
+const scryptAsync = util.promisify(crypto.scrypt);
 
 // Extend Express Request to include authenticated flag
 declare global {
@@ -14,20 +18,20 @@ declare global {
 const KEY_LEN = 64;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// Hash password with unique salt
-export function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
+// Hash password with unique salt asynchronously
+export async function hashPassword(password: string, salt?: string): Promise<{ hash: string; salt: string }> {
   const generatedSalt = salt || crypto.randomBytes(32).toString('hex');
-  const derivedKey = crypto.scryptSync(password, generatedSalt, KEY_LEN);
+  const derivedKey = (await scryptAsync(password, generatedSalt, KEY_LEN)) as Buffer;
   return {
     hash: derivedKey.toString('hex'),
     salt: generatedSalt,
   };
 }
 
-// Timing-safe password verification
-export function verifyPassword(password: string, hash: string, salt: string): boolean {
+// Timing-safe password verification asynchronously
+export async function verifyPassword(password: string, hash: string, salt: string): Promise<boolean> {
   try {
-    const derivedKey = crypto.scryptSync(password, salt, KEY_LEN);
+    const derivedKey = (await scryptAsync(password, salt, KEY_LEN)) as Buffer;
     const hashBuffer = Buffer.from(hash, 'hex');
     if (derivedKey.length !== hashBuffer.length) return false;
     return crypto.timingSafeEqual(derivedKey, hashBuffer);
@@ -42,9 +46,9 @@ export function isMasterPasswordSet(): boolean {
   return !!row;
 }
 
-// Set initial master password
-export function setMasterPassword(password: string): boolean {
-  const { hash, salt } = hashPassword(password);
+// Set initial master password asynchronously
+export async function setMasterPassword(password: string): Promise<boolean> {
+  const { hash, salt } = await hashPassword(password);
   const setHash = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('master_password_hash', ?)");
   const setSalt = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('master_password_salt', ?)");
 
@@ -56,8 +60,8 @@ export function setMasterPassword(password: string): boolean {
   return true;
 }
 
-// Verify credentials against stored master password
-export function verifyMasterPassword(password: string): boolean {
+// Verify credentials against stored master password asynchronously
+export async function verifyMasterPassword(password: string): Promise<boolean> {
   const hashRow = db.prepare("SELECT value FROM settings WHERE key = 'master_password_hash'").get() as { value?: string } | undefined;
   const saltRow = db.prepare("SELECT value FROM settings WHERE key = 'master_password_salt'").get() as { value?: string } | undefined;
 

@@ -17,9 +17,10 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, 'lens.db');
 export const db = new Database(dbPath);
 
-// Enable WAL mode for high concurrency & reliability
+// Enable WAL mode & busy timeout for high concurrency & reliability
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 // Initialize schema
 db.exec(`
@@ -50,9 +51,37 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles(slug);
+  CREATE INDEX IF NOT EXISTS idx_articles_slug_nocase ON articles(slug COLLATE NOCASE);
   CREATE INDEX IF NOT EXISTS idx_articles_status ON articles(status);
   CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
   CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date);
+
+  -- High-performance SQLite Full-Text Search (FTS5) for title, dek, abstract, tags, and content
+  CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
+    id UNINDEXED,
+    title,
+    dek,
+    abstract,
+    tags,
+    content,
+    tokenize = 'unicode61 remove_diacritics 2'
+  );
+
+  -- Automatic triggers to keep articles_fts synchronized with articles table
+  CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
+    INSERT INTO articles_fts(id, title, dek, abstract, tags, content)
+    VALUES (new.id, new.title, new.dek, new.abstract, new.tags, new.content);
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS articles_ad AFTER DELETE ON articles BEGIN
+    DELETE FROM articles_fts WHERE id = old.id;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS articles_au AFTER UPDATE ON articles BEGIN
+    DELETE FROM articles_fts WHERE id = old.id;
+    INSERT INTO articles_fts(id, title, dek, abstract, tags, content)
+    VALUES (new.id, new.title, new.dek, new.abstract, new.tags, new.content);
+  END;
 
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -74,6 +103,17 @@ db.exec(`
     last_attempt INTEGER NOT NULL
   );
 `);
+
+// Backfill FTS index for existing articles if needed
+try {
+  db.exec(`
+    INSERT INTO articles_fts(id, title, dek, abstract, tags, content)
+    SELECT id, title, dek, abstract, tags, content FROM articles
+    WHERE id NOT IN (SELECT id FROM articles_fts);
+  `);
+} catch (e) {
+  console.warn('[LENS DB] FTS sync notice:', e);
+}
 
 // Database row to Article mapper
 export function rowToArticle(row: any): Article {

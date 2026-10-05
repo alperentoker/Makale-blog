@@ -25,34 +25,88 @@ function slugify(text: string): string {
     .replace(/-+$/, '');
 }
 
-// 1. GET /api/articles — List articles with draft protection & filters
-articlesRouter.get('/', (req: Request, res: Response) => {
-  const { category, q, status } = req.query;
-  const isAdmin = !!req.authenticated;
+// Helper to sanitize raw search terms into safe SQLite FTS5 query tokens
+function sanitizeFtsQuery(raw: string): string {
+  const cleaned = raw.replace(/[^\p{L}\p{N}\s_-]/gu, ' ').trim();
+  const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return '';
+  return words.map(w => `"${w}"*`).join(' AND ');
+}
 
-  let query = 'SELECT * FROM articles WHERE 1=1';
+// 1. GET /api/articles — List articles with draft protection, FTS5 search, & light payload projection
+articlesRouter.get('/', (req: Request, res: Response) => {
+  const { category, q, status, includeContent: incContentParam } = req.query;
+  const isAdmin = !!req.authenticated;
+  const includeContent = incContentParam === 'true';
+
+  const selectFields = `
+    a.id, a.slug, a.title, a.dek, a.abstract, a.authors, a.date, a.displayDate,
+    a.readingTime, a.version, a.category, a.tags, a.status, a.doi, a.keywords,
+    a.telemetry, a.tables, a.beforeAfterMedia, a.series, a.bibtex,
+    ${includeContent ? 'a.content,' : "'' as content,"}
+    a.created_at, a.updated_at
+  `;
+
+  // 1.1 High-speed SQLite FTS5 Full-Text Search if query is present
+  const ftsQuery = q && typeof q === 'string' ? sanitizeFtsQuery(q) : '';
+  if (ftsQuery) {
+    try {
+      let query = `
+        SELECT ${selectFields}, bm25(articles_fts, 5.0, 3.0, 2.0, 2.0, 1.0) AS rank
+        FROM articles a
+        JOIN articles_fts ON articles_fts.id = a.id
+        WHERE articles_fts MATCH ?
+      `;
+      const params: any[] = [ftsQuery];
+
+      if (!isAdmin) {
+        query += " AND a.status = 'published'";
+      } else if (status && typeof status === 'string') {
+        query += ' AND a.status = ?';
+        params.push(status);
+      }
+
+      if (category && typeof category === 'string' && category !== 'Tümü') {
+        query += ' AND a.category = ?';
+        params.push(category);
+      }
+
+      query += ' ORDER BY rank ASC, a.date DESC';
+
+      const rows = db.prepare(query).all(...params);
+      if (rows.length > 0) {
+        res.json(rows.map(rowToArticle));
+        return;
+      }
+    } catch (err) {
+      console.warn('[LENS DB] FTS search fallback to LIKE:', err);
+    }
+  }
+
+  // 1.2 Standard list query (fallback or when no search query is specified)
+  let query = `SELECT ${selectFields} FROM articles a WHERE 1=1`;
   const params: any[] = [];
 
   // P1 Security: Public users ONLY see published articles!
   if (!isAdmin) {
-    query += " AND status = 'published'";
+    query += " AND a.status = 'published'";
   } else if (status && typeof status === 'string') {
-    query += ' AND status = ?';
+    query += ' AND a.status = ?';
     params.push(status);
   }
 
   if (category && typeof category === 'string' && category !== 'Tümü') {
-    query += ' AND category = ?';
+    query += ' AND a.category = ?';
     params.push(category);
   }
 
   if (q && typeof q === 'string' && q.trim()) {
     const searchPattern = `%${q.trim().toLowerCase()}%`;
-    query += ' AND (LOWER(title) LIKE ? OR LOWER(dek) LIKE ? OR LOWER(tags) LIKE ? OR LOWER(abstract) LIKE ?)';
+    query += ' AND (LOWER(a.title) LIKE ? OR LOWER(a.dek) LIKE ? OR LOWER(a.tags) LIKE ? OR LOWER(a.abstract) LIKE ?)';
     params.push(searchPattern, searchPattern, searchPattern, searchPattern);
   }
 
-  query += ' ORDER BY date DESC, created_at DESC';
+  query += ' ORDER BY a.date DESC, a.created_at DESC';
 
   const rows = db.prepare(query).all(...params);
   const articles = rows.map(rowToArticle);

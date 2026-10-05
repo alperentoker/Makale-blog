@@ -61,17 +61,17 @@ test('2. Security: Draft Isolation for Public Access', () => {
   db.prepare('DELETE FROM articles WHERE id = ?').run(testDraftId);
 });
 
-test('3. Cryptography: Scrypt Password Hashing and Timing-Safe Verification', () => {
+test('3. Cryptography: Scrypt Password Hashing and Timing-Safe Verification', async () => {
   const rawPassword = 'super-secret-tactical-pass-2026';
-  const { hash, salt } = hashPassword(rawPassword);
+  const { hash, salt } = await hashPassword(rawPassword);
 
   assert.ok(hash.length >= 64, 'Derived key should be at least 64 bytes (hex: 128 chars)');
   assert.ok(salt.length >= 32, 'Salt should be random 32 bytes (hex: 64 chars)');
 
-  const isValid = verifyPassword(rawPassword, hash, salt);
+  const isValid = await verifyPassword(rawPassword, hash, salt);
   assert.equal(isValid, true, 'Valid password must verify correctly');
 
-  const isInvalid = verifyPassword('wrong-password', hash, salt);
+  const isInvalid = await verifyPassword('wrong-password', hash, salt);
   assert.equal(isInvalid, false, 'Invalid password must be rejected');
 });
 
@@ -122,3 +122,48 @@ test('6. Session Security: Global Invalidation of All Sessions', () => {
   const countRow = db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number };
   assert.equal(countRow.count, 0, 'All sessions must be wiped on destroyAllSessions');
 });
+
+test('7. Search Engine: SQLite FTS5 Full-Text Search & Trigger Sync', () => {
+  const ftsTestId = `fts-test-${Date.now()}`;
+  const ftsTestArticle: Article = {
+    id: ftsTestId,
+    slug: `fts-unique-thermal-slug-${Date.now()}`,
+    title: 'Benzersiz Termal Spektrometre Mimarisi',
+    dek: 'Kızılötesi dalga boyu analizleri',
+    abstract: 'LWIR 8-14um sensör kalibrasyonu',
+    authors: [{ name: 'Alperen Toker', affiliation: 'LENS' }],
+    date: '2026-10-05',
+    displayDate: '5 Ekim 2026',
+    readingTime: '4 dk',
+    version: 'v1.0',
+    category: 'Termal Görüntüleme',
+    tags: ['FTS_TEST', 'LWIR_UNIK'],
+    status: 'published',
+    doi: '',
+    content: 'Derin içerik bloğu: Bu makalede gizli anahtar kelime KAVRAMSAL_RADYOMETRI_TEST_99 geçmektedir.',
+    bibtex: '',
+  };
+
+  // 1. Save article and verify trigger automatically syncs to articles_fts
+  saveArticle(ftsTestArticle);
+
+  const ftsCount = db.prepare('SELECT COUNT(*) as count FROM articles_fts WHERE id = ?').get(ftsTestId) as { count: number };
+  assert.equal(ftsCount.count, 1, 'FTS5 trigger must automatically index newly inserted article');
+
+  // 2. Query deep content keyword through FTS5
+  const deepContentResults = db.prepare(`
+    SELECT a.id, a.title, bm25(articles_fts) as rank
+    FROM articles a
+    JOIN articles_fts ON articles_fts.id = a.id
+    WHERE articles_fts MATCH '"KAVRAMSAL_RADYOMETRI_TEST_99"*'
+  `).all() as any[];
+
+  assert.ok(deepContentResults.length >= 1, 'FTS5 must find article by unique deep content keyword');
+  assert.equal(deepContentResults[0].id, ftsTestId, 'Matched article ID must be exact');
+
+  // 3. Clean up and verify deletion trigger works
+  db.prepare('DELETE FROM articles WHERE id = ?').run(ftsTestId);
+  const ftsAfterDelete = db.prepare('SELECT COUNT(*) as count FROM articles_fts WHERE id = ?').get(ftsTestId) as { count: number };
+  assert.equal(ftsAfterDelete.count, 0, 'FTS5 delete trigger must remove entry on article deletion');
+});
+

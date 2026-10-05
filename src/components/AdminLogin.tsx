@@ -38,8 +38,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onSuccess, onClo
 
     if (isFirstRun) {
       // First-run: set initial password
-      if (password.trim().length < 6) {
-        setError('Parola en az 6 karakter olmalıdır.');
+      if (password.trim().length < 8) {
+        setError('Parola en az 8 karakter olmalıdır.');
         setIsLoading(false);
         return;
       }

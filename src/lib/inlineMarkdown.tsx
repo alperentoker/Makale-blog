@@ -79,12 +79,17 @@ export function renderInlineMarkdown(text: string): React.ReactNode {
     // Markdown link: [text](url)
     const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {
+      const rawUrl = linkMatch[2].trim();
+      // Security: Disallow javascript:, data:, vbscript: protocols to prevent XSS
+      const isDangerous = /^(javascript|data|vbscript):/i.test(rawUrl);
+      const safeHref = isDangerous ? '#' : rawUrl;
+
       return (
         <a
           key={idx}
-          href={linkMatch[2]}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={safeHref}
+          target={safeHref.startsWith('http') ? '_blank' : undefined}
+          rel={safeHref.startsWith('http') ? 'noopener noreferrer' : undefined}
           className="text-tactical-blue dark:text-blue-400 underline underline-offset-2 hover:opacity-80"
         >
           {linkMatch[1]}

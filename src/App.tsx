@@ -5,6 +5,7 @@ import { Article } from './types';
 import { isAuthenticated, logout, fetchSession } from './lib/auth';
 import {
   fetchArticles,
+  fetchArticle,
   saveArticleApi,
   deleteArticleApi,
   importArticlesApi,
@@ -34,8 +35,9 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
   onBackToArchive,
 }) => {
   const { idOrSlug } = useParams<{ idOrSlug: string }>();
+  const [fetchedArticle, setFetchedArticle] = useState<Article | null>(null);
 
-  const article = useMemo(() => {
+  const matchedArticle = useMemo(() => {
     if (!idOrSlug) return null;
     const cleanParam = decodeURIComponent(idOrSlug).toLowerCase();
     return articles.find(
@@ -44,17 +46,42 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
   }, [articles, idOrSlug]);
 
   useEffect(() => {
-    if (article) {
-      document.title = `${article.title} // LENS`;
+    if (!idOrSlug) return;
+    // If matched article already has full content, skip fetching
+    if (matchedArticle?.content && matchedArticle.content.trim()) return;
+
+    let cancelled = false;
+    const cleanParam = decodeURIComponent(idOrSlug);
+
+    fetchArticle(cleanParam)
+      .then(art => {
+        if (!cancelled) {
+          setFetchedArticle(art);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [idOrSlug, matchedArticle]);
+
+  const activeArticle = (matchedArticle?.content && matchedArticle.content.trim())
+    ? matchedArticle
+    : (fetchedArticle || matchedArticle);
+
+  useEffect(() => {
+    if (activeArticle) {
+      document.title = `${activeArticle.title} // LENS`;
     } else {
       document.title = 'Makale Bulunamadı // LENS';
     }
     return () => {
       document.title = 'LENS // Bilgisayarlı Görü & Yapay Zeka Araştırmaları';
     };
-  }, [article]);
+  }, [activeArticle]);
 
-  if (!article) {
+  if (!activeArticle) {
     return (
       <div className="py-24 text-center max-w-lg mx-auto px-4">
         <div className="w-14 h-14 rounded-2xl bg-paper-200 dark:bg-paper-800 text-tactical-amber mx-auto flex items-center justify-center mb-4 border border-paper-300 dark:border-paper-700">
@@ -79,7 +106,7 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
 
   return (
     <ArticleReader
-      article={article}
+      article={activeArticle}
       allArticles={articles}
       onSelectArticle={onSelectArticle}
       onBackToArchive={onBackToArchive}

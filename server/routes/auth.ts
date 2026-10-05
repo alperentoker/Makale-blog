@@ -28,7 +28,7 @@ authRouter.get('/status', (req: Request, res: Response) => {
 });
 
 // 2. First-Run Master Password Setup
-authRouter.post('/setup', (req: Request, res: Response) => {
+authRouter.post('/setup', async (req: Request, res: Response) => {
   if (isMasterPasswordSet()) {
     res.status(400).json({ error: 'Yönetici parolası zaten belirlenmiş.' });
     return;
@@ -40,7 +40,7 @@ authRouter.post('/setup', (req: Request, res: Response) => {
     return;
   }
 
-  setMasterPassword(password);
+  await setMasterPassword(password);
   const token = createSession();
 
   // Set secure HttpOnly cookie
@@ -60,7 +60,7 @@ authRouter.post('/setup', (req: Request, res: Response) => {
 });
 
 // 3. Login with Brute-Force Rate Limiting
-authRouter.post('/login', (req: Request, res: Response) => {
+authRouter.post('/login', async (req: Request, res: Response) => {
   const ip = getClientIp(req);
   const rateLimit = checkRateLimit(ip);
 
@@ -87,7 +87,7 @@ authRouter.post('/login', (req: Request, res: Response) => {
     return;
   }
 
-  const isValid = verifyMasterPassword(password);
+  const isValid = await verifyMasterPassword(password);
 
   if (!isValid) {
     const { attempts, lockoutSeconds } = recordFailedAttempt(ip);
@@ -130,7 +130,7 @@ authRouter.post('/login', (req: Request, res: Response) => {
 });
 
 // 4. Change Password (Protected)
-authRouter.post('/change-password', requireAuth, (req: Request, res: Response) => {
+authRouter.post('/change-password', requireAuth, async (req: Request, res: Response) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
@@ -143,13 +143,13 @@ authRouter.post('/change-password', requireAuth, (req: Request, res: Response) =
     return;
   }
 
-  const isCurrentValid = verifyMasterPassword(currentPassword);
+  const isCurrentValid = await verifyMasterPassword(currentPassword);
   if (!isCurrentValid) {
     res.status(401).json({ error: 'Mevcut parola hatalı.' });
     return;
   }
 
-  setMasterPassword(newPassword);
+  await setMasterPassword(newPassword);
 
   // Invalidate all existing sessions across devices
   destroyAllSessions();

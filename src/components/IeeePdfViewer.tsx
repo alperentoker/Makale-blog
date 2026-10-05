@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Printer, ZoomIn, ZoomOut, RotateCcw, FileText, ArrowLeft } from 'lucide-react';
 import { Article } from '../types';
 import { renderKaTeX, renderInlineMarkdown } from '../lib/parser';
+import { parseMarkdownToBlocks } from '../lib/markdownEngine';
 
 interface IeeePdfViewerProps {
   article: Article;
@@ -43,125 +44,83 @@ export const IeeePdfViewer: React.FC<IeeePdfViewerProps> = ({
     window.print();
   };
 
-  // Render raw markdown content into IEEE styled elements
+  const blocks = useMemo(
+    () => parseMarkdownToBlocks(article.content, { articleTitle: article.title, articleDek: article.dek }),
+    [article.content, article.title, article.dek]
+  );
+
+  // Render AST blocks into IEEE styled elements
   const renderDynamicContent = () => {
-    const lines = article.content.split('\n');
-    const nodes: React.ReactNode[] = [];
     let sectionCount = 0;
-    let i = 0;
 
-    while (i < lines.length) {
-      const line = lines[i];
-      const trimmed = line.trim();
+    return blocks.map((block) => {
+      switch (block.type) {
+        case 'hr':
+          return null;
 
-      // Skip empty or horizontal rules
-      if (!trimmed || /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
-        i++;
-        continue;
-      }
-
-      // 1. Fenced Code Block
-      if (trimmed.startsWith('```')) {
-        const codeLines: string[] = [];
-        i++;
-        while (i < lines.length && !lines[i].trim().startsWith('```')) {
-          codeLines.push(lines[i]);
-          i++;
-        }
-        i++; // skip closing ```
-        nodes.push(
-          <div
-            key={`code-${i}`}
-            className="my-3 p-2 bg-neutral-50 border border-neutral-300 rounded font-mono text-[9.5px] leading-snug overflow-x-auto break-inside-avoid select-all"
-          >
-            <pre className="whitespace-pre">{codeLines.join('\n')}</pre>
-          </div>
-        );
-        continue;
-      }
-
-      // 2. Headings (##, ###, #)
-      if (trimmed.startsWith('## ') || trimmed.startsWith('### ') || trimmed.startsWith('# ')) {
-        const isH2 = trimmed.startsWith('## ');
-        const isH3 = trimmed.startsWith('### ');
-        const rawText = trimmed.replace(/^#+\s+/, '').trim();
-
-        // Skip if matches main article title
-        if (rawText.toLowerCase() === article.title.toLowerCase()) {
-          i++;
-          continue;
-        }
-
-        // Subtitle in parenthesis
-        if (rawText.startsWith('(') && rawText.endsWith(')')) {
-          nodes.push(
-            <p key={`sub-${i}`} className="italic text-neutral-600 text-[10.5px] mb-2 text-center">
-              {rawText}
-            </p>
-          );
-          i++;
-          continue;
-        }
-
-        if (isH2) {
-          const ieeeHeading = formatIeeeHeading(rawText, sectionCount);
-          sectionCount++;
-          nodes.push(
-            <h2
-              key={`h2-${i}`}
-              className="text-[11px] font-sans font-bold uppercase tracking-wider text-neutral-900 border-b border-neutral-300 pb-0.5 mt-4 mb-2 break-inside-avoid text-center"
+        case 'code':
+          return (
+            <div
+              key={block.id}
+              className="my-3 p-2 bg-neutral-50 border border-neutral-300 rounded font-mono text-[9.5px] leading-snug overflow-x-auto break-inside-avoid select-all"
             >
-              {ieeeHeading}
-            </h2>
+              <pre className="whitespace-pre">{block.code}</pre>
+            </div>
           );
-        } else if (isH3) {
-          nodes.push(
-            <h3
-              key={`h3-${i}`}
-              className="text-[10.5px] font-sans font-bold text-neutral-800 mt-3 mb-1 break-inside-avoid"
-            >
-              {rawText}
-            </h3>
-          );
-        } else {
-          nodes.push(
+
+        case 'heading': {
+          if (block.isSubtitle && block.subtitleText) {
+            return (
+              <p key={block.id} className="italic text-neutral-600 text-[10.5px] mb-2 text-center">
+                ({block.subtitleText})
+              </p>
+            );
+          }
+
+          if (block.level === 2) {
+            const ieeeHeading = formatIeeeHeading(block.text, sectionCount++);
+            return (
+              <h2
+                key={block.id}
+                className="text-[11px] font-sans font-bold uppercase tracking-wider text-neutral-900 border-b border-neutral-300 pb-0.5 mt-4 mb-2 break-inside-avoid text-center"
+              >
+                {ieeeHeading}
+              </h2>
+            );
+          }
+
+          if (block.level === 3) {
+            return (
+              <h3
+                key={block.id}
+                className="text-[10.5px] font-sans font-bold text-neutral-800 mt-3 mb-1 break-inside-avoid"
+              >
+                {block.text}
+              </h3>
+            );
+          }
+
+          return (
             <h2
-              key={`h1-${i}`}
+              key={block.id}
               className="text-[11.5px] font-sans font-bold uppercase text-neutral-900 border-b border-neutral-400 pb-0.5 mt-4 mb-2 break-inside-avoid"
             >
-              {rawText}
+              {block.text}
             </h2>
           );
         }
-        i++;
-        continue;
-      }
 
-      // 3. Tables
-      if (trimmed.startsWith('|')) {
-        const tableLines: string[] = [];
-        while (i < lines.length && lines[i].trim().startsWith('|')) {
-          tableLines.push(lines[i].trim());
-          i++;
-        }
-
-        if (tableLines.length >= 2) {
-          const parseRow = (rowStr: string) =>
-            rowStr.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
-
-          const headers = parseRow(tableLines[0]);
-          const rows = tableLines.slice(2).map(parseRow);
-
-          nodes.push(
-            <div key={`table-${i}`} className="my-3 border border-neutral-300 text-[9.5px] font-sans break-inside-avoid">
+        case 'table':
+          return (
+            <div key={block.id} className="my-3 border border-neutral-300 text-[9.5px] font-sans break-inside-avoid">
               <div className="bg-neutral-100 p-1 font-bold text-center border-b border-neutral-300 uppercase tracking-wide">
-                TABLE: {headers.join(' · ')}
+                TABLE: {block.headers.join(' · ')}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-neutral-300 bg-neutral-50 font-semibold">
-                      {headers.map((h, hIdx) => (
+                      {block.headers.map((h, hIdx) => (
                         <th key={hIdx} className="p-1 border-r border-neutral-200 last:border-r-0">
                           {renderInlineMarkdown(h)}
                         </th>
@@ -169,7 +128,7 @@ export const IeeePdfViewer: React.FC<IeeePdfViewerProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200">
-                    {rows.map((r, rIdx) => (
+                    {block.rows.map((r, rIdx) => (
                       <tr key={rIdx} className="hover:bg-neutral-50">
                         {r.map((cell, cIdx) => (
                           <td key={cIdx} className="p-1 border-r border-neutral-200 last:border-r-0">
@@ -183,114 +142,54 @@ export const IeeePdfViewer: React.FC<IeeePdfViewerProps> = ({
               </div>
             </div>
           );
-          continue;
-        }
+
+        case 'math':
+          return (
+            <div
+              key={block.id}
+              className="py-1.5 text-center font-serif my-2 break-inside-avoid overflow-x-auto text-[11px]"
+              dangerouslySetInnerHTML={{ __html: renderKaTeX(block.formula, true) }}
+            />
+          );
+
+        case 'list':
+          return (
+            <ul
+              key={block.id}
+              className={`my-2 space-y-1 text-[11px] text-justify leading-relaxed ${
+                block.ordered ? 'list-decimal pl-5' : 'list-disc pl-4'
+              }`}
+            >
+              {block.items.map((it, itIdx) => (
+                <li key={itIdx}>{renderInlineMarkdown(it.text)}</li>
+              ))}
+            </ul>
+          );
+
+        case 'callout':
+        case 'blockquote':
+          return (
+            <blockquote
+              key={block.id}
+              className="my-2 pl-3 border-l-2 border-neutral-400 italic text-[11px] text-neutral-700 break-inside-avoid"
+            >
+              {block.lines.map((ql, qIdx) => (
+                <p key={qIdx}>{renderInlineMarkdown(ql)}</p>
+              ))}
+            </blockquote>
+          );
+
+        case 'paragraph':
+          return (
+            <p key={block.id} className="indent-4 mb-2 text-[11px] text-justify leading-[1.48]">
+              {renderInlineMarkdown(block.text)}
+            </p>
+          );
+
+        default:
+          return null;
       }
-
-      // 4. Math Blocks ($$...$$)
-      if (trimmed.startsWith('$$')) {
-        let mathStr = '';
-        if (trimmed.endsWith('$$') && trimmed.length > 4) {
-          mathStr = trimmed.slice(2, -2).trim();
-          i++;
-        } else {
-          const mathLines: string[] = [];
-          i++;
-          while (i < lines.length && !lines[i].trim().endsWith('$$')) {
-            mathLines.push(lines[i]);
-            i++;
-          }
-          if (i < lines.length) {
-            mathLines.push(lines[i].replace(/\$\$$/, ''));
-            i++;
-          }
-          mathStr = mathLines.join('\n').trim();
-        }
-
-        nodes.push(
-          <div
-            key={`math-${i}`}
-            className="py-1.5 text-center font-serif my-2 break-inside-avoid overflow-x-auto text-[11px]"
-            dangerouslySetInnerHTML={{ __html: renderKaTeX(mathStr, true) }}
-          />
-        );
-        continue;
-      }
-
-      // 5. Unordered / Ordered Lists
-      if (/^[-*]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
-        const isOrdered = /^\d+\.\s+/.test(trimmed);
-        const items: string[] = [];
-
-        while (
-          i < lines.length &&
-          (/^[-*]\s+/.test(lines[i].trim()) || /^\d+\.\s+/.test(lines[i].trim()))
-        ) {
-          items.push(lines[i].trim().replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, ''));
-          i++;
-        }
-
-        nodes.push(
-          <ul
-            key={`list-${i}`}
-            className={`my-2 space-y-1 text-[11px] text-justify leading-relaxed ${
-              isOrdered ? 'list-decimal pl-5' : 'list-disc pl-4'
-            }`}
-          >
-            {items.map((it, itIdx) => (
-              <li key={itIdx}>{renderInlineMarkdown(it)}</li>
-            ))}
-          </ul>
-        );
-        continue;
-      }
-
-      // 6. Blockquote
-      if (trimmed.startsWith('>')) {
-        const quoteLines: string[] = [];
-        while (i < lines.length && lines[i].trim().startsWith('>')) {
-          quoteLines.push(lines[i].replace(/^>\s?/, ''));
-          i++;
-        }
-        nodes.push(
-          <blockquote
-            key={`quote-${i}`}
-            className="my-2 pl-3 border-l-2 border-neutral-400 italic text-[11px] text-neutral-700 break-inside-avoid"
-          >
-            {quoteLines.map((ql, qIdx) => (
-              <p key={qIdx}>{renderInlineMarkdown(ql)}</p>
-            ))}
-          </blockquote>
-        );
-        continue;
-      }
-
-      // 7. Regular Paragraph
-      const pLines: string[] = [];
-      while (
-        i < lines.length &&
-        lines[i].trim() &&
-        !lines[i].trim().startsWith('#') &&
-        !lines[i].trim().startsWith('```') &&
-        !lines[i].trim().startsWith('|') &&
-        !lines[i].trim().startsWith('$$') &&
-        !/^(-{3,}|\*{3,}|_{3,})$/.test(lines[i].trim()) &&
-        !/^[-*]\s+/.test(lines[i].trim()) &&
-        !/^\d+\.\s+/.test(lines[i].trim())
-      ) {
-        pLines.push(lines[i].trim());
-        i++;
-      }
-
-      const pText = pLines.join(' ');
-      nodes.push(
-        <p key={`p-${i}`} className="indent-4 mb-2 text-[11px] text-justify leading-[1.48]">
-          {renderInlineMarkdown(pText)}
-        </p>
-      );
-    }
-
-    return nodes;
+    });
   };
 
   return (
