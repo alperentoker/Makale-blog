@@ -35,7 +35,7 @@ sleep 5
 docker compose ps
 
 echo "======================================================================"
-echo "  LENS CMS & Edge Research Platform is deployed and running!"
+echo "  ✅ LENS CMS & Edge Research Platform is deployed and running!"
 echo "  Public URL: http://localhost (or your VPS IP / domain)"
-echo "  Admin Panel: Alt+A or /#admin (default password: lens_master_2026!)"
+echo "  Admin Panel: Alt+A or /#admin (create your master password on first visit)"
 echo "======================================================================"
