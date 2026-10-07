@@ -86,7 +86,7 @@ upstream lens_backend {
 
 server {
     listen 80;
-    server_name lens.alperentoker.com;
+    server_name lens.104.199.0.148.nip.io;
 
     root /var/www/lens-blog/dist;
     index index.html;
@@ -182,7 +182,7 @@ Let's Encrypt ile tek komutla otomatik SSL sertifikası tanımlayın:
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d lens.alperentoker.com
+sudo certbot --nginx -d lens.104.199.0.148.nip.io
 ```
 
 Certbot HTTP trafiğini otomatik olarak HTTPS'e yönlendirecektir.

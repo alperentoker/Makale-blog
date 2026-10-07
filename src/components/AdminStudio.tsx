@@ -69,14 +69,15 @@ const generateBibTeX = (art: Article): string => {
     : 'Alperen Toker';
   const cleanKey = (art.slug || 'lens_article').replace(/-/g, '_');
   const doiField = art.doi ? `\n  doi       = {${art.doi}},` : '';
+  const baseUrl = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://lens.104.199.0.148.nip.io';
   return `@article{${cleanKey}_${year},
   author    = {${authorNames}},
   title     = {${art.title}},
   journal   = {LENS: Savunma Sanayii ve Yapay Zeka Arşivi},
   year      = {${year}},
   volume    = {1},${doiField}
-  url       = {https://lens.alperentoker.com/#article/${art.slug || art.id}}
-}`;
+  url       = {${baseUrl}/#article/${art.slug || art.id}}
+};`;
 };
 
 export const AdminStudio: React.FC<AdminStudioProps> = ({

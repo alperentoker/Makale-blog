@@ -25,7 +25,7 @@ COPY --from=base /app/tsconfig*.json ./
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV DATA_DIR=/app/data
-ENV SITE_URL=https://lens.alperentoker.com
+ENV SITE_URL=https://lens.104.199.0.148.nip.io
 
 RUN mkdir -p /app/data && chown -R node:node /app
 USER node
