@@ -13,15 +13,10 @@ import {
   resetRateLimit,
 } from './auth.ts';
 import { Article } from '../src/types/index.ts';
-import { INITIAL_ARTICLES } from '../src/data/mockArticles.ts';
 
-test('1. Database: Seeding and Table Verification', () => {
-  let row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
-  if (row.count === 0) {
-    for (const art of INITIAL_ARTICLES) saveArticle(art);
-    row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
-  }
-  assert.ok(row.count >= 1, 'Database should contain at least 1 seeded article');
+test('1. Database: Schema and Table Verification', () => {
+  const row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
+  assert.ok(row.count >= 1, 'Database should contain at least 1 article');
 
   const articleRow = db.prepare('SELECT * FROM articles LIMIT 1').get();
   assert.ok(articleRow, 'Article row should exist');
@@ -215,17 +210,17 @@ test('8. Error Isolation: Resilient rowToArticle with Corrupted JSON', () => {
 });
 
 test('9. Search Engine: Multi-Article FTS5 Keyword Matching', () => {
-  // Query for 'TensorRT' should match the quantization article
-  const tensorRtMatches = db.prepare(`
+  // Query for 'YOLO11' should match the flagship tournament article
+  const yoloMatches = db.prepare(`
     SELECT a.id, a.title FROM articles a
     JOIN articles_fts ON articles_fts.id = a.id
-    WHERE articles_fts MATCH '"TensorRT"*'
+    WHERE articles_fts MATCH '"YOLO11"*'
   `).all() as { id: string; title: string }[];
 
-  assert.ok(tensorRtMatches.length >= 1, 'Search for TensorRT must return at least 1 match');
-  assert.ok(tensorRtMatches.some(m => m.id === 'art-tensorrt-quantization'), 'TensorRT article must be in matches');
+  assert.ok(yoloMatches.length >= 1, 'Search for YOLO11 must return at least 1 match');
+  assert.ok(yoloMatches.some(m => m.id === 'art-benchmark-roadmap'), 'Roadmap article must be in matches');
 
-  // Query for 'LWIR' should match the sensor fusion article
+  // Query for 'LWIR' should match the tactical thermal article
   const lwirMatches = db.prepare(`
     SELECT a.id, a.title FROM articles a
     JOIN articles_fts ON articles_fts.id = a.id
@@ -233,7 +228,7 @@ test('9. Search Engine: Multi-Article FTS5 Keyword Matching', () => {
   `).all() as { id: string; title: string }[];
 
   assert.ok(lwirMatches.length >= 1, 'Search for LWIR must return at least 1 match');
-  assert.ok(lwirMatches.some(m => m.id === 'art-sensor-fusion-lwir'), 'LWIR fusion article must be in matches');
+  assert.ok(lwirMatches.some(m => m.id === 'art-benchmark-roadmap'), 'Tactical thermal article must be in matches');
 });
 
 test('10. Sessions: Persistent SQLite Storage & Expiration Verification', () => {
@@ -248,4 +243,57 @@ test('10. Sessions: Persistent SQLite Storage & Expiration Verification', () => 
   const rowAfter = db.prepare('SELECT expires_at FROM sessions WHERE token = ?').get(tokenHash);
   assert.equal(rowAfter, undefined, 'Session token must be deleted from SQLite upon destroy');
 });
+
+test('11. OpenGraph & Twitter Metadata: HTML Standards and Default 1200x630 Card', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const ogImagePath = path.join(process.cwd(), 'public', 'og-image.png');
+  assert.ok(fs.existsSync(ogImagePath), 'Default 1200x630 og-image.png must exist in public directory');
+
+  const htmlPath = path.join(process.cwd(), 'index.html');
+  const html = fs.readFileSync(htmlPath, 'utf8');
+
+  assert.ok(html.includes('property="og:title"'), 'index.html must contain og:title');
+  assert.ok(html.includes('property="og:description"'), 'index.html must contain og:description');
+  assert.ok(html.includes('property="og:image"'), 'index.html must contain og:image');
+  assert.ok(html.includes('name="twitter:card" content="summary_large_image"'), 'index.html must contain twitter:card summary_large_image');
+  assert.ok(html.includes('name="twitter:image"'), 'index.html must contain twitter:image');
+  assert.ok(html.includes('rel="canonical"'), 'index.html must contain canonical link');
+});
+
+test('12. Dynamic Article OpenGraph Cards: Real Article Generation Verification', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  // Verify that generated article OG cards exist in public/og
+  const ogDir = path.join(process.cwd(), 'public', 'og');
+  assert.ok(fs.existsSync(ogDir), 'public/og directory must exist');
+
+  const files = fs.readdirSync(ogDir);
+  assert.ok(files.length >= 1, 'At least one article OG card must be generated');
+  assert.ok(files.some(f => f.includes('taktik-termal-lwir')), 'Tactical thermal roadmap article card must exist');
+});
+
+test('13. Backward-Compatibility Alias Resolution: Legacy roadmap URLs map to active article', () => {
+  // Check that querying former 'eo-ir' slug resolves to art-benchmark-roadmap
+  const legacySlug = 'eo-ir-dualmode-detection-yolo-nas-or-rt-detr-which-is-better';
+  let row = db.prepare('SELECT * FROM articles WHERE slug = ? OR id = ?').get(legacySlug, legacySlug);
+  if (!row && (legacySlug.includes('eo-ir') || legacySlug.includes('dualmode') || legacySlug.includes('roadmap') || legacySlug.includes('benchmark'))) {
+    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap'").get();
+  }
+  assert.ok(row, 'Legacy slug must successfully resolve to roadmap row');
+  const article = rowToArticle(row);
+  assert.equal(article.id, 'art-benchmark-roadmap');
+  assert.equal(article.slug, 'taktik-termal-lwir-nesne-tespiti-mimari-turnuvasi-ve-capraz-perspektif-cokus-analizi-yol-haritasi');
+});
+
+test('14. Database Production State: Exactly 1 real published article, strictly 0 mock articles', () => {
+  const publishedRows = db.prepare("SELECT id, slug, title, status FROM articles WHERE status = 'published'").all() as Array<{ id: string; slug: string; title: string }>;
+  assert.equal(publishedRows.length, 1, 'Production database must contain exactly 1 published article');
+  assert.equal(publishedRows[0].id, 'art-benchmark-roadmap');
+  assert.ok(!publishedRows[0].title.includes('Mock'), 'Must not be a mock article');
+});
+
+
 

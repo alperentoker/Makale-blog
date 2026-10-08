@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import { db, rowToArticle, saveArticle } from '../db.ts';
 import { requireAuth } from '../auth.ts';
 import { Article } from '../../src/types/index.ts';
-import { DEMO_SEED_ARTICLES } from '../../src/data/mockArticles.ts';
 
 export const articlesRouter = Router();
 
@@ -121,7 +120,12 @@ articlesRouter.get('/:idOrSlug', (req: Request, res: Response) => {
   const { idOrSlug } = req.params;
   const isAdmin = !!req.authenticated;
 
-  const row = db.prepare('SELECT * FROM articles WHERE id = ? OR LOWER(slug) = LOWER(?)').get(idOrSlug, idOrSlug);
+  let row = db.prepare('SELECT * FROM articles WHERE id = ? OR LOWER(slug) = LOWER(?)').get(idOrSlug, idOrSlug);
+
+  // Backward compatibility alias: former 'eo-ir' roadmap slug/id maps to current roadmap article
+  if (!row && (idOrSlug.includes('eo-ir') || idOrSlug.includes('dualmode') || idOrSlug.includes('roadmap') || idOrSlug.includes('benchmark'))) {
+    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap'").get();
+  }
 
   if (!row) {
     res.status(404).json({ error: 'Makale bulunamadı.' });
@@ -256,16 +260,9 @@ articlesRouter.post('/import', requireAuth, (req: Request, res: Response) => {
   res.json({ success: true, count: articles.length, message: `${articles.length} makale başarıyla içe aktarıldı.` });
 });
 
-// 7. POST /api/articles/seed — Seed default demo articles (Admin only)
+// 7. POST /api/articles/seed — Seed default demo articles (Disabled in live CMS)
 articlesRouter.post('/seed', requireAuth, (_req: Request, res: Response) => {
-  const seedTx = db.transaction((arts: Article[]) => {
-    for (const art of arts) {
-      saveArticle(art);
-    }
-  });
-
-  seedTx(DEMO_SEED_ARTICLES);
-  res.json({ success: true, count: DEMO_SEED_ARTICLES.length, message: 'Örnek makaleler başarıyla yüklendi.' });
+  res.json({ success: true, count: 0, message: 'Canlı CMS modunda örnek makale yüklemesi devre dışıdır.' });
 });
 
 // 8. POST /api/articles/wipe — Wipe all articles (Admin only)

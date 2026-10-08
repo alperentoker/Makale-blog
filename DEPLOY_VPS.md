@@ -39,6 +39,9 @@ Bu kurulum doğrudan VPS sunucunuz (Ubuntu/Debian) üzerinde Node.js, PM2 proces
 ### Adım 1: Projeyi Sunucuya Alın ve Bağımlılıkları Kurun
 
 ```bash
+# Python Pillow (Dinamik 1200x630 OpenGraph sosyal medya kartları üretimi için)
+sudo apt update && sudo apt install python3 python3-pil -y
+
 cd /var/www/lens-blog
 git pull origin main
 cp .env.example .env
@@ -109,7 +112,7 @@ server {
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
 
     # API Ters Proxy
-    location /api/ {
+    location ^~ /api/ {
         proxy_pass http://lens_backend;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -120,6 +123,14 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
         proxy_read_timeout 60s;
+    }
+
+    # Yüklenen Görseller & Şekiller (/uploads/)
+    location ^~ /uploads/ {
+        alias /var/www/lens-blog/data/uploads/;
+        expires 30d;
+        add_header Cache-Control "public";
+        access_log off;
     }
 
     # Dinamik SEO
@@ -141,16 +152,59 @@ server {
         proxy_set_header X-Forwarded-Host $host;
     }
 
+    # Dinamik Makale Paylaşımı & Open Graph Önizlemeleri (Facebook, LinkedIn, X, Slack, WhatsApp)
+    location ^~ /article/ {
+        proxy_pass http://lens_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    location ^~ /makale/ {
+        proxy_pass http://lens_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # Dinamik Sosyal Kart Görsel Uç Noktası (/og/:slug.png)
+    location ^~ /og/ {
+        proxy_pass http://lens_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
     # Gizli dosyalara erişim engeli (.env, .git vb.)
     location ~ /\.(?!well-known) {
         deny all;
         return 403;
     }
 
-    # Statik Varlık Önbellekleme
-    location ~* \.(?:js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico|webp|avif)$ {
+    # Statik Varlık Önbellekleme (Vite derleme dosyaları /assets/)
+    location ~* ^/assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Kök Statik Dosyalar (favicon, og-image.png vb.)
+    location ~* \.(?:woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico|webp|avif)$ {
+        expires 7d;
+        add_header Cache-Control "public";
         access_log off;
     }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, ArrowRight, ShieldCheck, AlertCircle, Eye, EyeOff, X, KeyRound } from 'lucide-react';
-import { loginWithPassword, isMasterPasswordSet, setInitialPassword, fetchSession } from '../lib/auth';
+import { loginWithPassword, setInitialPassword, fetchSession } from '../lib/auth';
 
 interface AdminLoginProps {
   isOpen: boolean;

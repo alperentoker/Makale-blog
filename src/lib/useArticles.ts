@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Article } from '../types';
-import { INITIAL_ARTICLES } from '../data/mockArticles';
 import {
   fetchArticles,
   fetchArticle,
@@ -62,7 +61,7 @@ export function useArticle(idOrSlug?: string, cachedArticle?: Article | null) {
 }
 
 // 3. Hook for saving articles with Optimistic Update & Rollback capability
-export function useSaveArticle(adminMode: boolean = false) {
+export function useSaveArticle(_adminMode: boolean = false) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -104,7 +103,7 @@ export function useSaveArticle(adminMode: boolean = false) {
 }
 
 // 4. Hook for deleting articles with Optimistic Update & Rollback capability
-export function useDeleteArticle(adminMode: boolean = false) {
+export function useDeleteArticle(_adminMode: boolean = false) {
   const queryClient = useQueryClient();
 
   return useMutation({

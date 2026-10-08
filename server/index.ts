@@ -130,7 +130,7 @@ if (fs.existsSync(distPath) && process.env.SERVE_STATIC === 'true') {
   app.use(express.static(distPath));
 
   app.get('*', (_req: Request, res: Response) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+    res.sendFile(path.join(distPath, 'index.html'), { dotfiles: 'allow' });
   });
 }
 

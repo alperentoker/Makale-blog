@@ -51,13 +51,49 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
     : (fetchedArticle || matchedArticle);
 
   useEffect(() => {
+    const defaultTitle = 'LENS // Alperen Toker — Araştırma & Mühendislik Notları';
+    const defaultDesc = "LENS (lens.atoker.dev) — Alperen Toker'in bilgisayarlı görü, derin öğrenme ve savunma teknolojileri üzerine araştırma ve mühendislik günlüğü.";
+    const defaultImage = `${window.location.origin}/og-image.png`;
+    const defaultUrl = `${window.location.origin}/`;
+
+    const setMeta = (selector: string, attr: string, val: string) => {
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute(attr, val);
+    };
+
     if (activeArticle) {
-      document.title = `${activeArticle.title} // LENS`;
+      const pageTitle = `${activeArticle.title} // LENS`;
+      const pageDesc = activeArticle.abstract || activeArticle.dek || defaultDesc;
+      const pageUrl = `${window.location.origin}/article/${activeArticle.slug}`;
+      const pageImg = `${window.location.origin}/og/${activeArticle.slug}.png`;
+
+      document.title = pageTitle;
+      setMeta('meta[name="description"]', 'content', pageDesc);
+      setMeta('meta[property="og:title"]', 'content', pageTitle);
+      setMeta('meta[property="og:description"]', 'content', pageDesc);
+      setMeta('meta[property="og:url"]', 'content', pageUrl);
+      setMeta('meta[property="og:image"]', 'content', pageImg);
+      setMeta('meta[property="og:image:secure_url"]', 'content', pageImg);
+      setMeta('meta[name="twitter:title"]', 'content', pageTitle);
+      setMeta('meta[name="twitter:description"]', 'content', pageDesc);
+      setMeta('meta[name="twitter:image"]', 'content', pageImg);
+      setMeta('link[rel="canonical"]', 'href', pageUrl);
     } else if (!isLoading) {
       document.title = 'Makale Bulunamadı // LENS';
     }
+
     return () => {
-      document.title = 'LENS // Bilgisayarlı Görü & Yapay Zeka Araştırmaları';
+      document.title = defaultTitle;
+      setMeta('meta[name="description"]', 'content', defaultDesc);
+      setMeta('meta[property="og:title"]', 'content', defaultTitle);
+      setMeta('meta[property="og:description"]', 'content', defaultDesc);
+      setMeta('meta[property="og:url"]', 'content', defaultUrl);
+      setMeta('meta[property="og:image"]', 'content', defaultImage);
+      setMeta('meta[property="og:image:secure_url"]', 'content', defaultImage);
+      setMeta('meta[name="twitter:title"]', 'content', defaultTitle);
+      setMeta('meta[name="twitter:description"]', 'content', defaultDesc);
+      setMeta('meta[name="twitter:image"]', 'content', defaultImage);
+      setMeta('link[rel="canonical"]', 'href', defaultUrl);
     };
   }, [activeArticle, isLoading]);
 
@@ -353,6 +389,12 @@ export const App: React.FC = () => {
           <Route
             path="/makale/:idOrSlug"
             element={<MakaleRedirect />}
+          />
+
+          {/* Legacy EO-IR alias redirect -> new taktik termal roadmap */}
+          <Route
+            path="/article/eo-ir-dualmode-detection-bilimsel-kiyaslama-ve-ablasyon-yol-haritasi"
+            element={<Navigate to="/article/taktik-termal-lwir-nesne-tespiti-mimari-turnuvasi-ve-capraz-perspektif-cokus-analizi-yol-haritasi" replace />}
           />
 
           {/* Direct Admin Route (renders archive under overlay) */}

@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { INITIAL_ARTICLES } from '../src/data/mockArticles.ts';
 import { Article } from '../src/types/index.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -233,15 +232,4 @@ export function saveArticle(art: Article): Article {
   return art;
 }
 
-// Auto-seed initial articles ONLY ONCE on fresh database initialization
-const seedDoneRow = db.prepare("SELECT value FROM settings WHERE key = 'initial_seed_completed'").get();
-if (!seedDoneRow && INITIAL_ARTICLES.length > 0) {
-  const insertTransaction = db.transaction((articles: Article[]) => {
-    for (const art of articles) {
-      saveArticle(art);
-    }
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('initial_seed_completed', 'true')").run();
-  });
-  insertTransaction(INITIAL_ARTICLES);
-}
 
