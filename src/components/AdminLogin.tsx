@@ -14,13 +14,25 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onSuccess, onClo
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isFirstRun, setIsFirstRun] = useState(!isMasterPasswordSet());
+  const [isFirstRun, setIsFirstRun] = useState(false);
+  const [isServerOffline, setIsServerOffline] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       fetchSession().then(status => {
-        setIsFirstRun(!status.isPasswordSet);
-      }).catch(() => {});
+        if (status.serverOnline === false) {
+          setIsServerOffline(true);
+          setIsFirstRun(false);
+          setError('Sunucu API bağlantısı kurulamadı (HTTP 502 / Çevrimdışı). Lütfen sunucudaki backend servisinin (lens-api) çalıştığından emin olun.');
+        } else {
+          setIsServerOffline(false);
+          setIsFirstRun(!status.isPasswordSet);
+          setError(null);
+        }
+      }).catch(() => {
+        setIsServerOffline(true);
+        setIsFirstRun(false);
+      });
     }
   }, [isOpen]);
 
@@ -157,11 +169,19 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onSuccess, onClo
 
           <button
             type="submit"
-            disabled={isLoading}
-            className={`w-full py-2.5 px-4 rounded ${isFirstRun ? 'bg-tactical-emerald hover:bg-tactical-emeraldDark' : 'bg-tactical-800 hover:bg-tactical-900'} disabled:opacity-50 text-white font-mono text-xs font-semibold shadow-sm transition-all flex items-center justify-center gap-2`}
+            disabled={isLoading || isServerOffline}
+            className={`w-full py-2.5 px-4 rounded ${
+              isServerOffline
+                ? 'bg-ink-400 dark:bg-paper-700 cursor-not-allowed opacity-60'
+                : isFirstRun
+                ? 'bg-tactical-emerald hover:bg-tactical-emeraldDark'
+                : 'bg-tactical-800 hover:bg-tactical-900'
+            } disabled:opacity-50 text-white font-mono text-xs font-semibold shadow-sm transition-all flex items-center justify-center gap-2`}
           >
             {isLoading ? (
               <span>Doğrulanıyor...</span>
+            ) : isServerOffline ? (
+              <span>Sunucu Çevrimdışı (API 502)</span>
             ) : (
               <>
                 <span>{isFirstRun ? 'Parolayı Oluştur ve Giriş Yap' : 'Stüdyo Konsoluna Giriş Yap'}</span>
@@ -169,6 +189,30 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onSuccess, onClo
               </>
             )}
           </button>
+
+          {isServerOffline && (
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setIsLoading(true);
+                fetchSession().then(status => {
+                  setIsLoading(false);
+                  if (status.serverOnline !== false) {
+                    setIsServerOffline(false);
+                    setIsFirstRun(!status.isPasswordSet);
+                  } else {
+                    setError('Sunucu hâlâ yanıt vermiyor (HTTP 502). Lütfen VPS üzerinde `pm2 status` ve `pm2 restart lens-api` çalıştırın.');
+                  }
+                }).catch(() => {
+                  setIsLoading(false);
+                });
+              }}
+              className="w-full py-1.5 px-3 text-[11px] font-mono text-tactical-blue hover:underline text-center block"
+            >
+              Bağlantıyı Yeniden Kontrol Et (Tekrar Dene)
+            </button>
+          )}
         </form>
 
         {/* Security Notice */}

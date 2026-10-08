@@ -22,7 +22,7 @@ export function isMasterPasswordSet(): boolean {
 }
 
 // Fetch session and master password status from server
-export async function fetchSession(): Promise<{ authenticated: boolean; isPasswordSet: boolean }> {
+export async function fetchSession(): Promise<{ authenticated: boolean; isPasswordSet: boolean; serverOnline?: boolean }> {
   try {
     const status = await checkAuthStatus();
     sessionCached = status.authenticated;
@@ -31,7 +31,7 @@ export async function fetchSession(): Promise<{ authenticated: boolean; isPasswo
     return status;
   } catch {
     sessionCached = false;
-    return { authenticated: false, isPasswordSet: true };
+    return { authenticated: false, isPasswordSet: true, serverOnline: false };
   }
 }
 

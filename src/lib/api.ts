@@ -155,77 +155,118 @@ export async function wipeAllArticlesApi(): Promise<void> {
 }
 
 // 8. Auth Status Check
-export async function checkAuthStatus(): Promise<AuthStatusResponse> {
+export async function checkAuthStatus(): Promise<AuthStatusResponse & { serverOnline: boolean; errorStatus?: number }> {
   try {
     const res = await fetch(`${API_BASE}/auth/status`, {
       credentials: 'include',
     });
-    if (!res.ok) return { isPasswordSet: false, authenticated: false };
-    return res.json();
+    if (!res.ok) {
+      return { isPasswordSet: true, authenticated: false, serverOnline: false, errorStatus: res.status };
+    }
+    const data = await res.json();
+    return { ...data, serverOnline: true };
   } catch {
-    return { isPasswordSet: false, authenticated: false };
+    return { isPasswordSet: true, authenticated: false, serverOnline: false };
   }
 }
 
 // 9. First-Run Master Password Setup
 export async function setupMasterPasswordApi(password: string): Promise<{ success: boolean; error?: string }> {
-  const res = await fetch(`${API_BASE}/auth/setup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ password }),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/auth/setup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Lens-CSRF': '1',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ password }),
+    });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { success: false, error: data.error || 'Parola kaydedilemedi.' };
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 502 || res.status === 503) {
+        return { success: false, error: `Sunucu API servisi kapalı veya yanıt vermiyor (HTTP ${res.status} Bad Gateway). Lütfen backend servisini kontrol edin.` };
+      }
+      return { success: false, error: data.error || `İşlem başarısız (HTTP ${res.status}).` };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Sunucuya bağlanılamadı. Lütfen ağ bağlantınızı kontrol edin.' };
   }
-  return { success: true };
 }
 
 // 10. Login with Brute-Force Rate Limiting
 export async function loginApi(password: string): Promise<LoginResult> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ password }),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Lens-CSRF': '1',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ password }),
+    });
 
-  const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
+    if (!res.ok) {
+      if (res.status === 502 || res.status === 503) {
+        return {
+          success: false,
+          authenticated: false,
+          error: `Sunucu API servisi kapalı (HTTP ${res.status} Bad Gateway). Lütfen backend servisini kontrol edin.`,
+        };
+      }
+      return {
+        success: false,
+        authenticated: false,
+        error: data.error || `Giriş başarısız (HTTP ${res.status}).`,
+        lockout: data.lockout,
+        retryAfterSeconds: data.retryAfterSeconds,
+        attemptsRemaining: data.attemptsRemaining,
+        firstRunRequired: data.firstRunRequired,
+      };
+    }
+
+    return {
+      success: true,
+      authenticated: true,
+    };
+  } catch (err: any) {
     return {
       success: false,
       authenticated: false,
-      error: data.error || 'Giriş başarısız.',
-      lockout: data.lockout,
-      retryAfterSeconds: data.retryAfterSeconds,
-      attemptsRemaining: data.attemptsRemaining,
-      firstRunRequired: data.firstRunRequired,
+      error: err?.message || 'Sunucuya bağlanılamadı. Lütfen ağ bağlantınızı kontrol edin.',
     };
   }
-
-  return {
-    success: true,
-    authenticated: true,
-  };
 }
 
 // 11. Change Password
 export async function changePasswordApi(currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
-  const res = await fetch(`${API_BASE}/auth/change-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ currentPassword, newPassword }),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-Lens-CSRF': '1',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { success: false, error: data.error || 'Parola değiştirilemedi.' };
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, error: data.error || `Parola değiştirilemedi (HTTP ${res.status}).` };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Sunucuya bağlanılamadı.' };
   }
-  return { success: true };
 }
 
 // 12. Logout
