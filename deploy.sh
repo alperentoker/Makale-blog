@@ -21,7 +21,7 @@ git pull origin main
 
 # 3. Install production dependencies
 echo "[2/4] Installing dependencies..."
-npm ci --prefer-offline --no-audit
+npm ci --prefer-offline --no-audit --include=dev
 
 # 4. Build Vite frontend bundle
 echo "[3/4] Building production frontend (dist)..."
