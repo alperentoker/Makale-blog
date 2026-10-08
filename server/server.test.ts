@@ -14,8 +14,32 @@ import {
 } from './auth.ts';
 import { Article } from '../src/types/index.ts';
 
+const SEED_ROADMAP_ARTICLE: Article = {
+  id: 'art-benchmark-roadmap',
+  slug: 'taktik-termal-lwir-nesne-tespiti-mimari-turnuvasi-ve-capraz-perspektif-cokus-analizi-yol-haritasi',
+  title: 'Taktik Termal (LWIR) Nesne Tespiti: Mimari Turnuvası ve Çapraz-Perspektif Çöküş Analizi Yol Haritası',
+  dek: '4x GPU · Kontrollü Turnuva · Çapraz-Perspektif Çöküş Matrisi · Dürüst Ölçüm Standartları',
+  abstract: 'Bu belge; Taktik Termal (LWIR) Nesne Tespiti projesinde yürütülecek model eğitimlerinin, çapraz-perspektif (Hava vs. Kara) ablasyonunun, ağırlık doğrulamasının ve yayınlanacak nihai blog makalesinin operasyonel deney kılavuzudur.',
+  authors: [{ name: 'Alperen Toker', affiliation: 'Yapay Zeka & Bilgisayarlı Görü', role: 'Yazar & Araştırmacı' }],
+  date: '2026-10-08',
+  displayDate: 'Bugün',
+  readingTime: '20 dk okuma süresi',
+  version: 'v2.0',
+  category: 'Kenar Yapay Zeka',
+  tags: ['LWIR', 'Termal Görüntüleme', 'YOLO11', 'D-FINE', 'YOLOv10', 'Ablasyon Analizi', 'Çöküş Matrisi', 'Benchmark'],
+  status: 'published',
+  doi: 'LENS-RR-2026-001',
+  keywords: ['Termal Nesne Tespiti', 'LWIR', 'YOLO11', 'D-FINE', 'YOLOv10', 'Ablasyon Analizi', 'Çöküş Matrisi', 'DroneVehicle', 'FLIR'],
+  content: 'Taktik Termal (LWIR) Nesne Tespiti Yol Haritası',
+  bibtex: ''
+};
+
 test('1. Database: Schema and Table Verification', () => {
-  const row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
+  let row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
+  if (row.count === 0) {
+    saveArticle(SEED_ROADMAP_ARTICLE);
+    row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
+  }
   assert.ok(row.count >= 1, 'Database should contain at least 1 article');
 
   const articleRow = db.prepare('SELECT * FROM articles LIMIT 1').get();
