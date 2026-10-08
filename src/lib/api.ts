@@ -122,6 +122,10 @@ export async function importArticlesApi(articles: Article[]): Promise<{ count: n
 export async function seedDemoArticlesApi(): Promise<{ count: number }> {
   const res = await fetch(`${API_BASE}/articles/seed`, {
     method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'X-Lens-CSRF': '1',
+    },
     credentials: 'include',
   });
 
@@ -137,6 +141,10 @@ export async function seedDemoArticlesApi(): Promise<{ count: number }> {
 export async function wipeAllArticlesApi(): Promise<void> {
   const res = await fetch(`${API_BASE}/articles/wipe`, {
     method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'X-Lens-CSRF': '1',
+    },
     credentials: 'include',
   });
 

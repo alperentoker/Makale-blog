@@ -25,7 +25,6 @@ export function useArticles(optionsOrAdmin: boolean | UseArticlesOptions = false
     typeof optionsOrAdmin === 'boolean' ? { adminMode: optionsOrAdmin } : optionsOrAdmin;
 
   const { adminMode = false, category, q } = options;
-  const isFiltered = !!(category && category !== 'Tümü') || !!(q && q.trim());
 
   return useQuery({
     queryKey: [ARTICLES_QUERY_KEY, { admin: adminMode, category: category || 'all', q: q || '' }],
@@ -38,25 +37,11 @@ export function useArticles(optionsOrAdmin: boolean | UseArticlesOptions = false
         });
         return Array.isArray(data) ? data : [];
       } catch (err) {
-        console.warn('[LENS] Backend fetchArticles failed, falling back to initial data:', err);
-        let fallback = [...INITIAL_ARTICLES];
-        if (category && category !== 'Tümü') {
-          fallback = fallback.filter(a => a.category === category);
-        }
-        if (q && q.trim()) {
-          const lower = q.toLowerCase();
-          fallback = fallback.filter(
-            a =>
-              a.title.toLowerCase().includes(lower) ||
-              a.dek.toLowerCase().includes(lower) ||
-              a.tags.some(t => t.toLowerCase().includes(lower))
-          );
-        }
-        return fallback;
+        console.warn('[LENS] Backend fetchArticles failed:', err);
+        return [];
       }
     },
-    initialData: isFiltered ? undefined : INITIAL_ARTICLES,
-    staleTime: 1000 * 60 * 2, // 2 minutes cache freshness
+    staleTime: 1000 * 30, // 30 seconds freshness
   });
 }
 
@@ -79,18 +64,17 @@ export function useArticle(idOrSlug?: string, cachedArticle?: Article | null) {
 // 3. Hook for saving articles with Optimistic Update & Rollback capability
 export function useSaveArticle(adminMode: boolean = false) {
   const queryClient = useQueryClient();
-  const queryKey = [ARTICLES_QUERY_KEY, { admin: adminMode }];
 
   return useMutation({
     mutationFn: (article: Article) => saveArticleApi(article),
-    // When mutate is called, optimistically update UI and snapshot previous state
     onMutate: async (newArticle: Article) => {
       await queryClient.cancelQueries({ queryKey: [ARTICLES_QUERY_KEY] });
 
-      const previousArticles = queryClient.getQueryData<Article[]>(queryKey) || [];
+      const previousQueries = queryClient.getQueriesData<Article[]>({ queryKey: [ARTICLES_QUERY_KEY] });
 
-      // Optimistically update articles list
-      queryClient.setQueryData<Article[]>(queryKey, (old = []) => {
+      // Optimistically update articles list across all matching queries
+      queryClient.setQueriesData<Article[]>({ queryKey: [ARTICLES_QUERY_KEY] }, (old = []) => {
+        if (!old) return [newArticle];
         const idx = old.findIndex(a => a.id === newArticle.id);
         if (idx !== -1) {
           const next = [...old];
@@ -103,16 +87,16 @@ export function useSaveArticle(adminMode: boolean = false) {
       // Also update single article query if exists
       queryClient.setQueryData(['article', newArticle.slug || newArticle.id], newArticle);
 
-      return { previousArticles };
+      return { previousQueries };
     },
-    // If mutation fails, rollback to previous snapshot!
     onError: (err, _newArticle, context) => {
-      if (context?.previousArticles) {
-        queryClient.setQueryData(queryKey, context.previousArticles);
+      if (context?.previousQueries) {
+        for (const [key, data] of context.previousQueries) {
+          queryClient.setQueryData(key, data);
+        }
       }
       console.error('[LENS Query] Save mutation failed, state rolled back:', err);
     },
-    // Always refetch in background after error or success to guarantee synchronization
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: [ARTICLES_QUERY_KEY] });
     },
@@ -122,25 +106,26 @@ export function useSaveArticle(adminMode: boolean = false) {
 // 4. Hook for deleting articles with Optimistic Update & Rollback capability
 export function useDeleteArticle(adminMode: boolean = false) {
   const queryClient = useQueryClient();
-  const queryKey = [ARTICLES_QUERY_KEY, { admin: adminMode }];
 
   return useMutation({
     mutationFn: (id: string) => deleteArticleApi(id),
     onMutate: async (idToDelete: string) => {
       await queryClient.cancelQueries({ queryKey: [ARTICLES_QUERY_KEY] });
 
-      const previousArticles = queryClient.getQueryData<Article[]>(queryKey) || [];
+      const previousQueries = queryClient.getQueriesData<Article[]>({ queryKey: [ARTICLES_QUERY_KEY] });
 
-      // Optimistically remove article
-      queryClient.setQueryData<Article[]>(queryKey, (old = []) =>
-        old.filter(a => a.id !== idToDelete)
+      // Optimistically remove article across all matching query keys
+      queryClient.setQueriesData<Article[]>({ queryKey: [ARTICLES_QUERY_KEY] }, (old = []) =>
+        old ? old.filter(a => a.id !== idToDelete) : []
       );
 
-      return { previousArticles };
+      return { previousQueries };
     },
     onError: (err, _id, context) => {
-      if (context?.previousArticles) {
-        queryClient.setQueryData(queryKey, context.previousArticles);
+      if (context?.previousQueries) {
+        for (const [key, data] of context.previousQueries) {
+          queryClient.setQueryData(key, data);
+        }
       }
       console.error('[LENS Query] Delete mutation failed, state rolled back:', err);
     },
@@ -177,9 +162,11 @@ export function useWipeArticles() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => wipeAllArticlesApi(),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: [ARTICLES_QUERY_KEY] });
+      queryClient.setQueriesData<Article[]>({ queryKey: [ARTICLES_QUERY_KEY] }, () => []);
+    },
     onSettled: () => {
-      queryClient.setQueryData([ARTICLES_QUERY_KEY, { admin: true }], []);
-      queryClient.setQueryData([ARTICLES_QUERY_KEY, { admin: false }], []);
       queryClient.invalidateQueries({ queryKey: [ARTICLES_QUERY_KEY] });
     },
   });
