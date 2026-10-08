@@ -51,22 +51,28 @@ IEEE, Distill.pub ve Stripe Press kalitesinde tasarlanmış; savunma sistemleri,
 # Bağımlılıkları yükle
 npm install
 
-# Hem Backend API'yi hem Frontend Vite sunucusunu aynı anda başlat
-npm run dev:all
+# Geliştirme sunucusunu ve Backend API'yi birlikte başlat
+npm run dev
 
 # Veya ayrı terminallerde:
-# Terminal 1 (Backend API :3001):
-npm run server
-
-# Terminal 2 (Frontend :5173):
-npm run dev
+# Terminal 1 (Backend API :3001): npm run dev:server
+# Terminal 2 (Frontend :5173):     npm run dev:client
 ```
 
 Geliştirme sunucusu `http://127.0.0.1:5173/`, Backend API `http://127.0.0.1:3001/` adresinde çalışır.
 
-### Docker Compose ile Üretim Dağıtımı
+### VPS Canlıya Alma (PM2 + Nginx)
+
+Sistem konteyner gerektirmeden doğrudan VPS üzerinde yerel PM2 ve Nginx ile çalışır:
 
 ```bash
-docker compose up -d --build
+# Derleme ve PM2 başlatma
+npm run build
+pm2 start "npm run server" --name lens-api
+
+# Tek tıkla güncelleme ve dağıtım betiği:
+./deploy.sh
 ```
+
+Detaylı sunucu ve SSL kurulum adımları için [DEPLOY_VPS.md](DEPLOY_VPS.md) dosyasına bakabilirsiniz.
 

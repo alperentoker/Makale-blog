@@ -314,7 +314,7 @@ export const IeeePdfViewer: React.FC<IeeePdfViewerProps> = ({
               <ol className="list-decimal pl-4 space-y-1 text-[9px] font-sans text-neutral-700">
                 <li>
                   {article.authors.map(a => a.name).join(', ')}, &ldquo;{article.title},&rdquo;{' '}
-                  <em>LENS Araştırma Yayınları</em>, {article.displayDate}. URL: {typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://lens.104.199.0.148.nip.io'}
+                  <em>LENS Araştırma Yayınları</em>, {article.displayDate}. URL: {typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://lens.atoker.dev'}
                 </li>
                 <li>
                   Ultralytics, &ldquo;YOLO11: Real-Time Object Detection and Segmentation,&rdquo; 2024.
@@ -329,7 +329,7 @@ export const IeeePdfViewer: React.FC<IeeePdfViewerProps> = ({
 
           {/* Running Footer */}
           <div className="border-t border-black/20 pt-2 mt-10 flex justify-between text-[10px] font-sans text-neutral-600">
-            <span>LENS: Savunma ve Bilgisayarlı Görü Araştırma Yayınları — {typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://lens.104.199.0.148.nip.io'}</span>
+            <span>LENS: Savunma ve Bilgisayarlı Görü Araştırma Yayınları — {typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://lens.atoker.dev'}</span>
             <span className="font-mono">Sayfa 1 / 1</span>
           </div>
         </div>

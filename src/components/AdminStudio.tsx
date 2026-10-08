@@ -69,7 +69,7 @@ const generateBibTeX = (art: Article): string => {
     : 'Alperen Toker';
   const cleanKey = (art.slug || 'lens_article').replace(/-/g, '_');
   const doiField = art.doi ? `\n  doi       = {${art.doi}},` : '';
-  const baseUrl = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://lens.104.199.0.148.nip.io';
+  const baseUrl = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://lens.atoker.dev';
   return `@article{${cleanKey}_${year},
   author    = {${authorNames}},
   title     = {${art.title}},

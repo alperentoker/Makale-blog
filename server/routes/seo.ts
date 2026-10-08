@@ -10,7 +10,7 @@ function getSiteUrl(req: Request): string {
     const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
     return `${proto}://${host}`;
   }
-  return (process.env.SITE_URL || 'https://lens.104.199.0.148.nip.io').replace(/\/$/, '');
+  return (process.env.SITE_URL || 'https://lens.atoker.dev').replace(/\/$/, '');
 }
 
 // 1. Dynamic XML Sitemap

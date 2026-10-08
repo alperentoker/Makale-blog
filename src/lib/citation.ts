@@ -4,7 +4,7 @@ const getBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;
   }
-  return 'https://lens.104.199.0.148.nip.io';
+  return 'https://lens.atoker.dev';
 };
 
 export function generateBibtex(article: Article): string {

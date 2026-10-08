@@ -1,18 +1,19 @@
-# LENS // lens.alperentoker.com VPS Sunucu Kurulum & Canlıya Alma Kılavuzu
+# LENS // lens.atoker.dev VPS Sunucu Kurulum & Canlıya Alma Kılavuzu
 
-Bu kılavuz, **LENS** platformunu `alperentoker.com` ana alan adınız altında **`lens.alperentoker.com`** alt alan adı (subdomain) olarak VPS sunucunuzda (Ubuntu/Debian) **Plan B (Gerçek CMS + SQLite Veritabanı + Node.js API)** mimarisiyle canlıya almanız için gerekli tüm adımları içerir.
+Bu kılavuz, **LENS** platformunu `atoker.dev` ana alan adınız altında **`lens.atoker.dev`** alt alan adı (subdomain) olarak VPS sunucunuzda (Ubuntu/Debian) **Plan B (Gerçek CMS + SQLite Veritabanı + Node.js API)** mimarisiyle canlıya almanız için gerekli tüm adımları içerir.
 
 ---
 
 ## 🌐 1. DNS Ayarı (Domain Yönetim Paneli)
 
-Domaini yönettiğiniz panelde (Cloudflare, Namecheap, GoDaddy, vb.) bir DNS kaydı ekleyin:
+Domaini yönettiğiniz panelde (Cloudflare, Namecheap, GoDaddy, vb.) DNS kayıtlarını ekleyin:
 
-| Tür (Type) | İsim (Host / Name) | Değer (Value / Target) | TTL |
-| :--- | :--- | :--- | :--- |
-| **A** | `lens` | `VPS_SUNUCU_IP_ADRESINIZ` | Otomatik / 300 |
+| Tür (Type) | İsim (Host / Name) | Değer (Value / Target) | TTL | Açıklama |
+| :--- | :--- | :--- | :--- | :--- |
+| **A** | `lens` | `VPS_SUNUCU_IP_ADRESINIZ` | Otomatik / 300 | `lens.atoker.dev` LENS sitemize yönlenir |
+| **A** | `@` *(isteğe bağlı)* | `VPS_SUNUCU_IP_ADRESINIZ` | Otomatik / 300 | `atoker.dev` ana alan adınız (ayrı portföy/site için) |
 
-*(Bu sayede `lens.alperentoker.com` doğrudan VPS sunucunuza yönlenir).*
+*(Bu sayede `lens.atoker.dev` doğrudan VPS sunucunuza yönlenir).*
 
 ---
 
@@ -25,68 +26,62 @@ Domaini yönettiğiniz panelde (Cloudflare, Namecheap, GoDaddy, vb.) bir DNS kay
   * Sunucu seviyesinde IP tabanlı kademeli brute-force koruması aktiftir (5 hatalı deneme → 1 dk, 10 hatalı deneme → 15 dk kilitleme).
 * **Taslak İzolasyonu:** Yayınlanmamış makaleler (`draft`) kamuya açık API ve sayfalarda filtrelenir; yalnızca doğrulanmış yönetici oturumu ile görülebilir.
 * **Erişim Yolları:**
-  * `https://lens.alperentoker.com/admin` (veya `/#admin`)
+  * `https://lens.atoker.dev/admin` (veya `/#admin`)
   * Klavyeden <kbd>Alt + A</kbd> veya <kbd>Ctrl + Shift + A</kbd> kısayolu.
   * Sayfa altındaki konsol simgesi.
 
 ---
 
-## 🚀 3. Dağıtım Seçenekleri
+## 🚀 3. VPS Dağıtımı (PM2 + Nginx)
 
-### Yöntem A: Docker Compose ile Dağıtım (Önerilen)
+Bu kurulum doğrudan VPS sunucunuz (Ubuntu/Debian) üzerinde Node.js, PM2 process yöneticisi ve Nginx ters proxy ile en yüksek performans ve düşük kaynak tüketimiyle çalışır.
 
-En kolay, izole ve güvenli yöntemdir. Backend Node.js servisi ve Frontend Nginx servisi tek komutla ayağa kalkar:
+### Adım 1: Projeyi Sunucuya Alın ve Bağımlılıkları Kurun
 
 ```bash
-# 1. Projeyi sunucuya çekin
 cd /var/www/lens-blog
-
-# 2. Ortam değişkenlerini yapılandırın
+git pull origin main
 cp .env.example .env
-
-# 3. Docker Compose ile derleyin ve başlatın
-docker compose up -d --build
-
-# 4. Durumu kontrol edin
-docker compose ps
-docker compose logs -f
-```
-
-Veritabanı sunucudaki `./data/lens.db` dizininde kalıcı olarak saklanır; konteynerler yeniden başlatılsa bile veri kaybı yaşanmaz.
-
----
-
-### Yöntem B: Doğrudan VPS Üzerinde PM2 + Nginx ile Dağıtım
-
-#### Adım 1: Bağımlılıkları Kurun ve Derleyin
-
-```bash
-cd /var/www/lens-blog
 npm ci
 npm run build
 ```
 
-#### Adım 2: Backend API Servisini Başlatın (PM2)
+### Adım 2: Backend API Servisini Başlatın (PM2)
 
 ```bash
-# PM2 kurulu değilse: npm install -g pm2
+# PM2 kurulu değilse: sudo npm install -g pm2
 pm2 start "npm run server" --name lens-api
 pm2 save
 pm2 startup
 ```
 
-#### Adım 3: Nginx Yapılandırması
+Veritabanı sunucudaki `./data/lens.db` dosyasında SQLite WAL modunda saklanır; sunucu yeniden başlatılsa bile veri kaybı yaşanmaz.
 
-`/etc/nginx/sites-available/lens-alperentoker` dosyasını oluşturun:
+### Adım 3: Nginx Yapılandırması
+
+`/etc/nginx/sites-available/lens-atoker` dosyasını oluşturun:
 
 ```nginx
 upstream lens_backend {
     server 127.0.0.1:3001;
 }
 
+# 1. Varsayılan Yakalayıcı (Default Server / Catch-All):
+# atoker.dev, doğrudan IP veya eşleşmeyen diğer host isteklerini yakalar ve reddeder.
+# Böylece LENS platformu SADECE lens.atoker.dev üzerinden açılır, ana domain temiz kalır.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    server_tokens off;
+    return 404;
+}
+
+# 2. LENS Platformu (lens.atoker.dev):
 server {
     listen 80;
-    server_name lens.104.199.0.148.nip.io;
+    listen [::]:80;
+    server_name lens.atoker.dev;
 
     root /var/www/lens-blog/dist;
     index index.html;
@@ -169,7 +164,7 @@ server {
 Yapılandırmayı etkinleştirin ve Nginx'i yeniden yükleyin:
 
 ```bash
-sudo ln -sf /etc/nginx/sites-available/lens-alperentoker /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/lens-atoker /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -182,7 +177,7 @@ Let's Encrypt ile tek komutla otomatik SSL sertifikası tanımlayın:
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d lens.104.199.0.148.nip.io
+sudo certbot --nginx -d lens.atoker.dev
 ```
 
 Certbot HTTP trafiğini otomatik olarak HTTPS'e yönlendirecektir.
