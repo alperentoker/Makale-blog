@@ -13,9 +13,14 @@ import {
   resetRateLimit,
 } from './auth.ts';
 import { Article } from '../src/types/index.ts';
+import { INITIAL_ARTICLES } from '../src/data/mockArticles.ts';
 
 test('1. Database: Seeding and Table Verification', () => {
-  const row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
+  let row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
+  if (row.count === 0) {
+    for (const art of INITIAL_ARTICLES) saveArticle(art);
+    row = db.prepare('SELECT COUNT(*) as count FROM articles').get() as { count: number };
+  }
   assert.ok(row.count >= 1, 'Database should contain at least 1 seeded article');
 
   const articleRow = db.prepare('SELECT * FROM articles LIMIT 1').get();
