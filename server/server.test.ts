@@ -31,7 +31,21 @@ const SEED_ROADMAP_ARTICLE: Article = {
   doi: 'LENS-RR-2026-001',
   keywords: ['Termal Nesne Tespiti', 'LWIR', 'YOLO11', 'D-FINE', 'YOLOv10', 'Ablasyon Analizi', 'Çöküş Matrisi', 'DroneVehicle', 'FLIR'],
   content: 'Taktik Termal (LWIR) Nesne Tespiti Yol Haritası',
-  bibtex: ''
+  bibtex: '',
+  telemetry: {
+    topBanner: 'FLIR LWIR & EDGE AI BENCHMARK // TELEMETRY HUD',
+    protocol: {
+      enabled: true,
+      title: 'DENEY PROTOKOLÜ // SABİT HESAPLAMA BÜTÇESİ',
+      badge: '4X GPU · 100 EPOCH KİLİTLİ REÇETE',
+      metrics: [
+        { label: 'HESAPLAMA BÜTÇESİ', value: '4x GPU · 100E', detail: 'Dağıtık Paralel (DDP)' },
+        { label: 'GİRİŞ & BANT', value: 'imgsz: 640', detail: 'EO/IR Çift Modlu Havuz' },
+        { label: 'MİMARİ EKOLÜ', value: '4 Farklı Ekol', detail: 'YOLO, Transformer, NMS-Free' },
+        { label: 'SAKLI DOĞRULAMA', value: '14.403 Frame', detail: 'Sızıntısız Saklı Küme' }
+      ]
+    }
+  }
 };
 
 test('1. Database: Schema and Table Verification', () => {

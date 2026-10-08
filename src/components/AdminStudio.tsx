@@ -60,6 +60,19 @@ const createBlankDraft = (): Article => ({
   content: `## 1. Giriş ve Problem Tanımı\n\nBuraya araştırmanın giriş metnini yazabilirsiniz. Formül eklemek için KaTeX kullanabilirsiniz: $E = mc^2$.\n\n> [!NOTE]\n> Bu bir editoryal not kutusudur.\n\n## 2. Metodoloji ve Formülasyon\n\n$$\\mathcal{L}_{\\text{loss}} = \\lambda_1 \\mathcal{L}_{\\text{IoU}} + \\lambda_2 \\mathcal{L}_{\\text{thermal}}$$\n\n## 3. Deneysel Bulgular\n\nSonuçlar ve saha testleri...`,
   bibtex: '',
   doi: '',
+  telemetry: {
+    protocol: {
+      enabled: false,
+      title: 'DENEY PROTOKOLÜ // SABİT HESAPLAMA BÜTÇESİ',
+      badge: '',
+      metrics: [
+        { label: 'HESAPLAMA BÜTÇESİ', value: '4x GPU · 100E', detail: 'Dağıtık Paralel (DDP)' },
+        { label: 'GİRİŞ & BANT', value: 'imgsz: 640', detail: 'EO/IR Çift Modlu Havuz' },
+        { label: 'MİMARİ EKOLÜ', value: '4 Farklı Ekol', detail: 'YOLO, Transformer, NMS-Free' },
+        { label: 'SAKLI DOĞRULAMA', value: '14.403 Frame', detail: 'Sızıntısız Saklı Küme' }
+      ]
+    }
+  }
 });
 
 const generateBibTeX = (art: Article): string => {

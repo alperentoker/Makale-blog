@@ -32,6 +32,19 @@ export interface BeforeAfterMedia {
   caption: string;
 }
 
+export interface ProtocolMetric {
+  label: string;       // e.g. "HESAPLAMA BÜTÇESİ"
+  value: string;       // e.g. "4x GPU · 100E"
+  detail?: string;     // e.g. "Dağıtık Paralel (DDP)"
+}
+
+export interface ExperimentProtocol {
+  enabled?: boolean;   // Whether HUD is visible
+  title?: string;      // e.g. "DENEY PROTOKOLÜ // SABİT HESAPLAMA BÜTÇESİ"
+  badge?: string;      // e.g. "4X GPU · 100 EPOCH KİLİTLİ REÇETE"
+  metrics?: ProtocolMetric[];
+}
+
 export interface ArticleTelemetry {
   latency?: string;      // e.g. "6.5 ms"
   fps?: number | string; // e.g. "153 FPS"
@@ -40,6 +53,8 @@ export interface ArticleTelemetry {
   modelArch?: string;    // e.g. "YOLOv9-C" or "YOLO11s"
   accuracy?: string;     // e.g. "mAP@50: 89.4%"
   hardware?: string;     // e.g. "Jetson Orin AGX"
+  topBanner?: string;    // e.g. "FLIR LWIR & EDGE AI BENCHMARK // TELEMETRY HUD"
+  protocol?: ExperimentProtocol;
 }
 
 export interface Article {

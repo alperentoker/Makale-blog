@@ -33,7 +33,13 @@ export const ArticleHeroHud: React.FC<ArticleHeroHudProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-6 border-b border-paper-300 dark:border-paper-800 text-[11px] font-mono tracking-wider">
         <div className="flex items-center gap-2 text-tactical-amber font-semibold uppercase">
           <Crosshair className="w-3.5 h-3.5 animate-pulse text-tactical-amber" />
-          <span>FLIR LWIR & EDGE AI BENCHMARK // TELEMETRY HUD</span>
+          <span>
+            {article.telemetry?.topBanner || (
+              article.category.toUpperCase().includes('TERMAL') || article.category.toUpperCase().includes('KENAR')
+                ? 'FLIR LWIR & EDGE AI BENCHMARK // TELEMETRY HUD'
+                : `${article.category.toUpperCase()} // TEKNİK ARAŞTIRMA RAPORU`
+            )}
+          </span>
         </div>
 
         <div className="flex items-center gap-3 text-ink-500 dark:text-ink-400">
@@ -48,8 +54,6 @@ export const ArticleHeroHud: React.FC<ArticleHeroHudProps> = ({
         </div>
       </div>
 
-
-
       {/* Main Headline (High-Contrast Editorial Serif) */}
       <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-5.5xl font-serif font-bold text-ink-950 dark:text-paper-50 leading-[1.14] tracking-tight mb-5">
         {article.title}
@@ -63,79 +67,83 @@ export const ArticleHeroHud: React.FC<ArticleHeroHudProps> = ({
       )}
 
       {/* TACTICAL TELEMETRY HUD CARD (Linear / Stripe Press Aesthetic) */}
-      <div className="reticle-box my-8 p-4 sm:p-5 rounded-lg border border-paper-300 dark:border-paper-800 bg-white/70 dark:bg-paper-850/80 backdrop-blur-md shadow-paper-md">
-        {/* HUD Header Bar */}
-        <div className="flex items-center justify-between pb-3 mb-4 border-b border-paper-200 dark:border-paper-800 text-[11px] font-mono uppercase text-ink-500 dark:text-ink-400">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-sm bg-tactical-blue" />
-            <span className="font-semibold text-ink-800 dark:text-paper-100 tracking-wider">
-              DENEY PROTOKOLÜ // SABİT HESAPLAMA BÜTÇESİ
-            </span>
-          </div>
-          <span className="hidden sm:inline text-tactical-amber font-semibold">
-            4x GPU · 100 EPOCH KİLİTLİ REÇETE
-          </span>
-        </div>
+      {(() => {
+        const protocol = article.telemetry?.protocol;
+        const isProtocolVisible = protocol?.enabled ?? (article.id === 'art-benchmark-roadmap' || !!protocol?.metrics?.length);
+        if (!isProtocolVisible) return null;
 
-        {/* 4 HUD Metric Modules (Reflecting Roadmap Parameters) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 font-mono">
-          {/* Module 1: Training Budget */}
-          <div className="p-3 rounded bg-paper-150/70 dark:bg-paper-900/60 border border-paper-200 dark:border-paper-800/80">
-            <div className="flex items-center justify-between text-[10px] text-ink-500 mb-1">
-              <span>HESAPLAMA BÜTÇESİ</span>
-              <Cpu className="w-3 h-3 text-tactical-amber" />
-            </div>
-            <div className="text-base sm:text-lg font-bold text-ink-950 dark:text-paper-50 tracking-tight">
-              4x GPU · 100E
-            </div>
-            <div className="text-[10px] text-ink-600 dark:text-paper-300 font-sans mt-0.5">
-              Dağıtık Paralel (DDP)
-            </div>
-          </div>
+        const protocolTitle = protocol?.title || 'DENEY PROTOKOLÜ // SABİT HESAPLAMA BÜTÇESİ';
+        const protocolBadge = protocol?.badge || '4X GPU · 100 EPOCH KİLİTLİ REÇETE';
+        const defaultMetrics = [
+          { label: 'HESAPLAMA BÜTÇESİ', value: '4x GPU · 100E', detail: 'Dağıtık Paralel (DDP)' },
+          { label: 'GİRİŞ & BANT', value: 'imgsz: 640', detail: 'EO/IR Çift Modlu Havuz' },
+          { label: 'MİMARİ EKOLÜ', value: '4 Farklı Ekol', detail: 'YOLO, Transformer, NMS-Free' },
+          { label: 'SAKLI DOĞRULAMA', value: '14.403 Frame', detail: 'Sızıntısız Saklı Küme' }
+        ];
+        const metrics = (protocol?.metrics && protocol.metrics.length > 0) ? protocol.metrics : defaultMetrics;
 
-          {/* Module 2: Spectral & Sensor Spec */}
-          <div className="p-3 rounded bg-paper-150/70 dark:bg-paper-900/60 border border-paper-200 dark:border-paper-800/80">
-            <div className="flex items-center justify-between text-[10px] text-ink-500 mb-1">
-              <span>GİRİŞ &amp; BANT</span>
-              <Eye className="w-3 h-3 text-tactical-blue" />
-            </div>
-            <div className="text-base sm:text-lg font-bold text-ink-950 dark:text-paper-50 tracking-tight">
-              imgsz: 640
-            </div>
-            <div className="text-[10px] text-ink-600 dark:text-paper-300 font-sans mt-0.5 truncate">
-              EO/IR Çift Modlu Havuz
-            </div>
-          </div>
+        const getMetricIcon = (label: string, idx: number) => {
+          const l = label.toLowerCase();
+          if (l.includes('hesap') || l.includes('gpu') || l.includes('cpu') || l.includes('bütçe')) {
+            return <Cpu className="w-3 h-3 text-tactical-amber" />;
+          }
+          if (l.includes('bant') || l.includes('giriş') || l.includes('sensor') || l.includes('çözünürlük')) {
+            return <Eye className="w-3 h-3 text-tactical-blue" />;
+          }
+          if (l.includes('ekol') || l.includes('mimari') || l.includes('model')) {
+            return <Zap className="w-3 h-3 text-tactical-emerald" />;
+          }
+          if (l.includes('saklı') || l.includes('doğrulama') || l.includes('frame') || l.includes('test')) {
+            return <ShieldCheck className="w-3 h-3 text-cyan-500" />;
+          }
+          const defaultIcons = [
+            <Cpu className="w-3 h-3 text-tactical-amber" key="0" />,
+            <Eye className="w-3 h-3 text-tactical-blue" key="1" />,
+            <Zap className="w-3 h-3 text-tactical-emerald" key="2" />,
+            <ShieldCheck className="w-3 h-3 text-cyan-500" key="3" />
+          ];
+          return defaultIcons[idx % defaultIcons.length];
+        };
 
-          {/* Module 3: Model Families */}
-          <div className="p-3 rounded bg-paper-150/70 dark:bg-paper-900/60 border border-paper-200 dark:border-paper-800/80">
-            <div className="flex items-center justify-between text-[10px] text-ink-500 mb-1">
-              <span>MİMARİ EKOLÜ</span>
-              <Zap className="w-3 h-3 text-tactical-emerald" />
+        return (
+          <div className="reticle-box my-8 p-4 sm:p-5 rounded-lg border border-paper-300 dark:border-paper-800 bg-white/70 dark:bg-paper-850/80 backdrop-blur-md shadow-paper-md">
+            {/* HUD Header Bar */}
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-paper-200 dark:border-paper-800 text-[11px] font-mono uppercase text-ink-500 dark:text-ink-400">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-sm bg-tactical-blue" />
+                <span className="font-semibold text-ink-800 dark:text-paper-100 tracking-wider">
+                  {protocolTitle}
+                </span>
+              </div>
+              {protocolBadge && (
+                <span className="hidden sm:inline text-tactical-amber font-semibold">
+                  {protocolBadge}
+                </span>
+              )}
             </div>
-            <div className="text-base sm:text-lg font-bold text-ink-950 dark:text-paper-50 tracking-tight truncate">
-              4 Farklı Ekol
-            </div>
-            <div className="text-[10px] text-tactical-emerald dark:text-emerald-400 font-sans mt-0.5">
-              YOLO, Transformer, NMS-Free
-            </div>
-          </div>
 
-          {/* Module 4: Dataset Leakage Audit */}
-          <div className="p-3 rounded bg-paper-150/70 dark:bg-paper-900/60 border border-paper-200 dark:border-paper-800/80">
-            <div className="flex items-center justify-between text-[10px] text-ink-500 mb-1">
-              <span>SAKLI DOĞRULAMA</span>
-              <ShieldCheck className="w-3 h-3 text-cyan-500" />
-            </div>
-            <div className="text-base sm:text-lg font-bold text-ink-950 dark:text-paper-50 tracking-tight">
-              14.403 Frame
-            </div>
-            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans mt-0.5">
-              Sızıntısız Saklı Küme
+            {/* HUD Metric Modules */}
+            <div className={`grid grid-cols-2 md:grid-cols-${Math.min(Math.max(metrics.length, 2), 4)} gap-3 sm:gap-4 font-mono`}>
+              {metrics.map((m, idx) => (
+                <div key={idx} className="p-3 rounded bg-paper-150/70 dark:bg-paper-900/60 border border-paper-200 dark:border-paper-800/80">
+                  <div className="flex items-center justify-between text-[10px] text-ink-500 mb-1">
+                    <span className="truncate pr-1">{m.label}</span>
+                    {getMetricIcon(m.label, idx)}
+                  </div>
+                  <div className="text-base sm:text-lg font-bold text-ink-950 dark:text-paper-50 tracking-tight truncate">
+                    {m.value}
+                  </div>
+                  {m.detail && (
+                    <div className="text-[10px] text-ink-600 dark:text-paper-300 font-sans mt-0.5 truncate">
+                      {m.detail}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Author & Editorial Metadata Footer Bar */}
       <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-sans border-b border-paper-300 dark:border-paper-800 pb-5">
