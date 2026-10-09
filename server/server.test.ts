@@ -11,7 +11,11 @@ import {
   checkRateLimit,
   recordFailedAttempt,
   resetRateLimit,
+  normalizeClientId,
 } from './auth.ts';
+import { ipInCidr, isTrustedProxy } from './net.ts';
+import { sanitizeSvg, matchesMagicBytes } from './routes/upload.ts';
+import { markdownToSeoHtml, escapeHtml } from './lib/seoRender.ts';
 import { Article } from '../src/types/index.ts';
 
 const SEED_ROADMAP_ARTICLE: Article = {
@@ -331,6 +335,139 @@ test('14. Database Production State: Exactly 1 real published article, strictly 
   assert.equal(publishedRows.length, 1, 'Production database must contain exactly 1 published article');
   assert.equal(publishedRows[0].id, 'art-benchmark-roadmap');
   assert.ok(!publishedRows[0].title.includes('Mock'), 'Must not be a mock article');
+});
+
+test('15. Network: Trusted-proxy CIDR matching rejects spoofed client IPs', () => {
+  // Local Nginx and Cloudflare edge ranges are trusted...
+  assert.equal(ipInCidr('127.0.0.1', '127.0.0.0/8'), true);
+  assert.equal(ipInCidr('172.71.0.10', '172.64.0.0/13'), true);
+  assert.equal(ipInCidr('2400:cb00::1', '2400:cb00::/32'), true);
+  assert.equal(isTrustedProxy('127.0.0.1'), true);
+
+  // ...but arbitrary client addresses are not, so X-Forwarded-For cannot be forged.
+  assert.equal(ipInCidr('8.8.8.8', '172.64.0.0/13'), false);
+  assert.equal(ipInCidr('127.0.0.1', '127.0.0.0/8'), true);
+  assert.equal(isTrustedProxy('198.51.100.7'), false);
+  assert.equal(isTrustedProxy('2001:4860:4860::8888'), false);
+
+  // IPv4-mapped IPv6 peers (dual-stack sockets) collapse to plain IPv4.
+  assert.equal(ipInCidr('::ffff:127.0.0.1', '127.0.0.0/8'), true);
+  assert.equal(isTrustedProxy('::ffff:127.0.0.1'), true);
+});
+
+test('16. Rate Limiting: Lockout persists after the attempt counter is capped (regression)', () => {
+  const testIp = '203.0.113.42';
+  resetRateLimit(testIp);
+
+  // Drive the IP well past the 10-attempt hard-lockout threshold. Attempts are
+  // capped in storage, but lockout_until must remain in the future so the IP
+  // stays blocked instead of resetting to a fresh 5-attempt window.
+  for (let i = 0; i < 12; i++) {
+    recordFailedAttempt(testIp);
+  }
+
+  const check = checkRateLimit(testIp);
+  assert.equal(check.allowed, false, 'IP must remain locked out after the counter cap');
+  assert.ok((check.retryAfterSeconds || 0) > 60, 'Lockout must expose a 15-minute retry-after (> 60s)');
+
+  // Two more failed attempts must not silently unlock the client.
+  recordFailedAttempt(testIp);
+  assert.equal(checkRateLimit(testIp).allowed, false, 'Lockout must persist across further attempts');
+
+  resetRateLimit(testIp);
+  assert.equal(checkRateLimit(testIp).allowed, true, 'Reset must clear the lockout');
+});
+
+test('17. Rate Limiting: Client identifiers are normalised into stable bounded keys', () => {
+  const keyA = normalizeClientId('198.51.100.5');
+  const keyB = normalizeClientId('198.51.100.5');
+  const keyC = normalizeClientId('198.51.100.6');
+  assert.equal(keyA, keyB, 'Same IP must map to the same key');
+  assert.notEqual(keyA, keyC, 'Different IPs must map to different keys');
+  assert.ok(keyA.length <= 40, 'Rate-limit keys must stay short/bounded');
+  assert.ok(keyA.startsWith('v4:'), 'IPv4 keys must be tagged with the address family');
+  assert.ok(normalizeClientId('2001:db8::1').startsWith('v6:'), 'IPv6 keys must be tagged');
+});
+
+test('18. Upload: SVG sanitizer strips active content before storage', () => {
+  const malicious = `<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">
+    <script>fetch('/api/auth/status')</script>
+    <script href="https://evil.com/x.js" />
+    <a xlink:href="javascript:alert(2)"><text>x</text></a>
+    <image href="data:text/html,<script>alert(3)</script>" />
+    <rect width="10" height="10" />
+  </svg>`;
+  const clean = sanitizeSvg(malicious);
+
+  assert.ok(!/<script/i.test(clean), 'script tags must be removed');
+  assert.ok(!/onload\s*=/i.test(clean), 'inline event handlers must be removed');
+  assert.ok(!/javascript:/i.test(clean), 'javascript: URLs must be removed');
+  assert.ok(!/data:text\/html/i.test(clean), 'data: URLs in href/src must be removed');
+  assert.ok(/<rect/i.test(clean), 'benign markup must be preserved');
+});
+
+test('19. Upload: magic-byte validation rejects content that does not match the declared type', () => {
+  const png = Buffer.from('89504e470d0a1a0a', 'hex');
+  const gif = Buffer.from('GIF89a', 'ascii');
+  const jpeg = Buffer.from('ffd8ffe000104a464946', 'hex');
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', 'utf8');
+  const svgDoctype = Buffer.from('<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n<svg></svg>', 'utf8');
+  const webp = Buffer.concat([Buffer.from('RIFF', 'ascii'), Buffer.alloc(4), Buffer.from('WEBP', 'ascii')]);
+
+  assert.equal(matchesMagicBytes(png, 'image/png'), true);
+  assert.equal(matchesMagicBytes(gif, 'image/gif'), true);
+  assert.equal(matchesMagicBytes(jpeg, 'image/jpeg'), true);
+  assert.equal(matchesMagicBytes(svg, 'image/svg+xml'), true);
+  assert.equal(matchesMagicBytes(svgDoctype, 'image/svg+xml'), true);
+  assert.equal(matchesMagicBytes(webp, 'image/webp'), true);
+
+  // A script disguised as a PNG must be rejected.
+  assert.equal(matchesMagicBytes(Buffer.from('<script>alert(1)</script>'), 'image/png'), false);
+  assert.equal(matchesMagicBytes(Buffer.from('not-an-image'), 'image/jpeg'), false);
+});
+
+test('20. SEO: Markdown is rendered to semantic escaped HTML for crawlers', () => {
+  const md = [
+    '# Ana Başlık',
+    '',
+    'Giriş paragrafı **kalın** ve `inline kod` içerir.',
+    '',
+    '## Alt Başlık',
+    '',
+    '- Birinci madde',
+    '- İkinci madde',
+    '',
+    '1. Adım bir',
+    '2. Adım iki',
+    '',
+    '> Alıntı satırı',
+    '',
+    '| Başlık | Değer |',
+    '| --- | --- |',
+    '| LWIR | 0.87 |',
+    '',
+    '```js',
+    'const x = 1;',
+    '```',
+  ].join('\n');
+
+  const html = markdownToSeoHtml(md);
+  assert.ok(html.includes('<h1>Ana Başlık</h1>'), 'H1 must be emitted');
+  assert.ok(html.includes('<h2>Alt Başlık</h2>'), 'H2 must be emitted');
+  assert.ok(html.includes('<strong>kalın</strong>') === false, 'raw markdown markers must be stripped');
+  assert.ok(html.includes('<p>Giriş paragrafı kalın ve inline kod içerir.</p>'), 'inline markers must be reduced to text');
+  assert.ok(html.includes('<ul>') && html.includes('<li>Birinci madde</li>'), 'unordered list must render');
+  assert.ok(html.includes('<ol>') && html.includes('<li>Adım bir</li>'), 'ordered list must render');
+  assert.ok(html.includes('<blockquote>Alıntı satırı</blockquote>'), 'blockquote must render');
+  assert.ok(html.includes('<th>Başlık</th>') && html.includes('<td>LWIR</td>'), 'table must render');
+  assert.ok(html.includes('<pre><code>const x = 1;</code></pre>'), 'code block must render');
+
+  // Article content is untrusted: raw HTML must always be escaped.
+  const evil = markdownToSeoHtml('# <script>alert(1)</script>\n\n<img src=x onerror=alert(2)>');
+  assert.ok(!/<script/i.test(evil), 'script tags must be escaped, not emitted');
+  assert.ok(!/<img/i.test(evil), 'raw HTML in content must be escaped');
+  assert.ok(evil.includes('&lt;script&gt;'), 'escaped form must be present');
+  assert.equal(escapeHtml('<a href="x">'), '&lt;a href=&quot;x&quot;&gt;');
 });
 
 

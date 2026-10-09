@@ -104,10 +104,25 @@ export function cleanExpiredSessions(): void {
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
 }
 
+const MAX_TRACKED_ATTEMPTS = 11; // Cap stored attempts (>= 10 keeps the 15min lockout active)
+const COOLDOWN_SECONDS = 60; // 5-9 failed attempts → 60s cooldown
+const LOCKOUT_SECONDS = 15 * 60; // 10+ failed attempts → 15min lockout
+const ATTEMPT_RESET_MS = 60 * 60 * 1000; // Sliding window is 1 hour
+
+// Normalise an arbitrary client identifier into a stable, bounded key.
+// Prevents proxy-derived IP variants from resetting the counter and keeps
+// the rate_limits table compact.
+export function normalizeClientId(raw: string): string {
+  const value = (raw || 'unknown').trim().toLowerCase();
+  const family = value.includes(':') ? 'v6' : 'v4';
+  return `${family}:${crypto.createHash('sha256').update(value).digest('hex').slice(0, 32)}`;
+}
+
 // Check IP Rate limit for brute-force protection
 export function checkRateLimit(ip: string): { allowed: boolean; retryAfterSeconds?: number; attempts: number } {
   const now = Date.now();
-  const row = db.prepare('SELECT attempts, lockout_until, last_attempt FROM rate_limits WHERE ip = ?').get(ip) as {
+  const key = normalizeClientId(ip);
+  const row = db.prepare('SELECT attempts, lockout_until, last_attempt FROM rate_limits WHERE ip = ?').get(key) as {
     attempts: number;
     lockout_until: number;
     last_attempt: number;
@@ -123,9 +138,9 @@ export function checkRateLimit(ip: string): { allowed: boolean; retryAfterSecond
     return { allowed: false, retryAfterSeconds: retryAfter, attempts: row.attempts };
   }
 
-  // If last attempt was more than 1 hour ago, reset count
-  if (now - row.last_attempt > 3600 * 1000) {
-    db.prepare('DELETE FROM rate_limits WHERE ip = ?').run(ip);
+  // If the sliding window elapsed, reset count
+  if (now - row.last_attempt > ATTEMPT_RESET_MS) {
+    db.prepare('DELETE FROM rate_limits WHERE ip = ?').run(key);
     return { allowed: true, attempts: 0 };
   }
 
@@ -135,20 +150,23 @@ export function checkRateLimit(ip: string): { allowed: boolean; retryAfterSecond
 // Record a failed login attempt
 export function recordFailedAttempt(ip: string): { attempts: number; lockoutSeconds: number } {
   const now = Date.now();
-  const current = db.prepare('SELECT attempts FROM rate_limits WHERE ip = ?').get(ip) as { attempts: number } | undefined;
+  const key = normalizeClientId(ip);
+  const current = db.prepare('SELECT attempts FROM rate_limits WHERE ip = ?').get(key) as { attempts: number } | undefined;
   const attempts = (current?.attempts || 0) + 1;
 
   let lockoutUntil = 0;
   let lockoutSeconds = 0;
 
   if (attempts >= 10) {
-    lockoutSeconds = 15 * 60; // 15 minutes lockout
+    lockoutSeconds = LOCKOUT_SECONDS;
     lockoutUntil = now + lockoutSeconds * 1000;
   } else if (attempts >= 5) {
-    lockoutSeconds = 60; // 1 minute cooldown
+    lockoutSeconds = COOLDOWN_SECONDS;
     lockoutUntil = now + lockoutSeconds * 1000;
   }
 
+  // Persist the cooldown expiry even after the attempt counter is capped;
+  // cap only the counter value, never clear lockout_until.
   db.prepare(`
     INSERT INTO rate_limits (ip, attempts, lockout_until, last_attempt)
     VALUES (?, ?, ?, ?)
@@ -156,14 +174,14 @@ export function recordFailedAttempt(ip: string): { attempts: number; lockoutSeco
       attempts = excluded.attempts,
       lockout_until = excluded.lockout_until,
       last_attempt = excluded.last_attempt
-  `).run(ip, attempts, lockoutUntil, now);
+  `).run(key, Math.min(attempts, MAX_TRACKED_ATTEMPTS), lockoutUntil, now);
 
   return { attempts, lockoutSeconds };
 }
 
 // Reset failed attempts on successful login
 export function resetRateLimit(ip: string): void {
-  db.prepare('DELETE FROM rate_limits WHERE ip = ?').run(ip);
+  db.prepare('DELETE FROM rate_limits WHERE ip = ?').run(normalizeClientId(ip));
 }
 
 // Middleware: Authenticate user from HttpOnly cookie or Authorization Bearer header

@@ -290,6 +290,7 @@ articlesRouter.post('/resolve-academic', requireAuth, async (req: Request, res: 
       const apiUrl = `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(arxivId)}`;
       const apiRes = await fetch(apiUrl, {
         headers: { 'User-Agent': 'LENS-CMS/1.0 (academic-resolver)' },
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!apiRes.ok) {
@@ -396,6 +397,7 @@ Bu çalışma, **arXiv:${arxivId}** önbaskısı üzerinden LENS sistemine otoma
         headers: {
           'User-Agent': 'LENS-CMS/1.0 (mailto:admin@lens-research.local)',
         },
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!crossRes.ok) {

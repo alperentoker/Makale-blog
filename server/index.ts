@@ -10,6 +10,7 @@ import { authenticateUser, cleanExpiredSessions } from './auth.ts';
 import { authRouter } from './routes/auth.ts';
 import { articlesRouter } from './routes/articles.ts';
 import { seoRouter } from './routes/seo.ts';
+import { configureTrustProxy } from './net.ts';
 
 dotenv.config();
 
@@ -22,18 +23,24 @@ const PORT = process.env.PORT || 3001;
 // 1. Disable X-Powered-By header (Information disclosure prevention)
 app.disable('x-powered-by');
 
-// 2. Trust reverse proxy (Nginx) for correct client IP detection
-app.set('trust proxy', 1);
+// 2. Trust only our own reverse proxies (local Nginx and Cloudflare edge IPs).
+// A numeric trust proxy would let clients spoof X-Forwarded-For and evade
+// per-IP brute-force lockouts.
+configureTrustProxy(app);
 
 // 3. Security Headers Middleware (Defense-in-depth across all endpoints)
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // Self-hosted, subresource-integrity-free SPA: forbid framing, plugins and
+  // cross-origin embeddings entirely.
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
   if (process.env.NODE_ENV === 'production') {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
   next();
 });
@@ -89,7 +96,17 @@ const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'data',
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    // Uploaded SVGs are sanitized on write; this CSP adds a second layer so a
+    // served SVG can never execute scripts or load external resources.
+    if (filePath.toLowerCase().endsWith('.svg')) {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    }
+  },
+}));
 
 // SEO Routes at root: /sitemap.xml & /robots.txt
 app.use('/', seoRouter);
@@ -129,20 +146,31 @@ if (fs.existsSync(distPath) && process.env.SERVE_STATIC === 'true') {
   console.log(`[LENS CMS] Serving static files from ${distPath}`);
   app.use(express.static(distPath));
 
-  app.get('*', (_req: Request, res: Response) => {
+  app.get('{*splat}', (_req: Request, res: Response) => {
     res.sendFile(path.join(distPath, 'index.html'), { dotfiles: 'allow' });
   });
 }
 
-// Global Error Handler (Masks sensitive details in production)
+// Global Error Handler (masks internal details, including raw JSON parse messages)
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[LENS Server Error]', err);
   const isProduction = process.env.NODE_ENV === 'production';
   const statusCode = typeof err.status === 'number' && err.status >= 400 && err.status < 600 ? err.status : 500;
 
-  res.status(statusCode).json({
-    error: isProduction && statusCode === 500 ? 'Sunucu hatası oluştu.' : (err.message || 'Sunucu hatası oluştu.'),
-  });
+  if (err?.type === 'entity.parse.failed' || (err instanceof SyntaxError && (err as any).status === 400)) {
+    res.status(400).json({ error: 'Geçersiz istek gövdesi.' });
+    return;
+  }
+
+  if (isProduction) {
+    // Never leak internal messages (paths, parser output, stack hints) in production.
+    res.status(statusCode).json({
+      error: statusCode >= 500 ? 'Sunucu hatası oluştu.' : (err.expose ? err.message : 'Geçersiz istek.'),
+    });
+    return;
+  }
+
+  res.status(statusCode).json({ error: err.message || 'Sunucu hatası oluştu.' });
 });
 
 // Periodic cleanup of expired sessions (every 1 hour)

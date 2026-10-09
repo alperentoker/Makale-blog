@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import { db, rowToArticle } from '../db.ts';
+import { escapeHtml, markdownToSeoHtml } from '../lib/seoRender.ts';
 import { Article } from '../../src/types/index.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,16 +21,6 @@ function getSiteUrl(req: Request): string {
     return `${proto}://${host}`;
   }
   return (process.env.SITE_URL || 'https://lens.atoker.dev').replace(/\/$/, '');
-}
-
-// HTML escape helper to prevent XSS and tag breakage in injected metadata
-function escapeHtml(text: string = ''): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
 
 // Clean string for description meta tags (strip markdown syntax, newlines, etc.)
@@ -130,18 +121,60 @@ seoRouter.get('/sitemap.xml', (req: Request, res: Response) => {
 // 2. Robots.txt
 seoRouter.get('/robots.txt', (req: Request, res: Response) => {
   const siteUrl = getSiteUrl(req);
+  // Do not disclose internal admin paths here; robots.txt is public and would
+  // otherwise hand attackers a map of the admin surface. Those routes are
+  // protected server-side anyway.
   const txt = `# LENS // Robots.txt
 User-agent: *
 Allow: /
-Disallow: /admin
-Disallow: /studio
-Disallow: /yonetim
 Disallow: /api/
 
 Sitemap: ${siteUrl}/sitemap.xml
 `;
   res.header('Content-Type', 'text/plain');
   res.send(txt);
+});
+
+// 2.1 RSS 2.0 Feed (fast, crawler- and reader-friendly distribution)
+seoRouter.get('/feed.xml', (req: Request, res: Response) => {
+  const siteUrl = getSiteUrl(req);
+  const articles = db.prepare(`
+    SELECT slug, title, dek, abstract, date, updated_at
+    FROM articles
+    WHERE status = 'published'
+    ORDER BY date DESC
+    LIMIT 50
+  `).all() as Array<{ slug: string; title: string; dek: string; abstract: string; date: string; updated_at: number }>;
+
+  const latest = articles.reduce((max, a) => Math.max(max, a.updated_at || 0), Date.now());
+
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n';
+  xml += '  <channel>\n';
+  xml += '    <title>LENS // Alperen Toker</title>\n';
+  xml += `    <link>${siteUrl}/</link>\n`;
+  xml += '    <description>Alperen Toker — bilgisayarlı görü, derin öğrenme ve savunma teknolojileri üzerine araştırma ve mühendislik günlüğü.</description>\n';
+  xml += '    <language>tr</language>\n';
+  xml += `    <lastBuildDate>${new Date(latest).toUTCString()}</lastBuildDate>\n`;
+  xml += `    <atom:link href="${siteUrl}/feed.xml" rel="self" type="application/rss+xml" />\n`;
+
+  for (const art of articles) {
+    const url = `${siteUrl}/article/${encodeURIComponent(art.slug)}`;
+    const summary = cleanDescription(art.abstract || art.dek || '', 300);
+    const pubDate = art.date ? new Date(`${art.date}T00:00:00Z`).toUTCString() : new Date(art.updated_at || Date.now()).toUTCString();
+    xml += '    <item>\n';
+    xml += `      <title>${escapeHtml(art.title)}</title>\n`;
+    xml += `      <link>${url}</link>\n`;
+    xml += `      <guid isPermaLink="true">${url}</guid>\n`;
+    xml += `      <pubDate>${pubDate}</pubDate>\n`;
+    xml += `      <description>${escapeHtml(summary)}</description>\n`;
+    xml += '    </item>\n';
+  }
+
+  xml += '  </channel>\n</rss>';
+
+  res.header('Content-Type', 'application/rss+xml; charset=utf-8');
+  res.send(xml);
 });
 
 // 3. Static Site OG Image fallback
@@ -158,7 +191,19 @@ seoRouter.get('/og-image.png', (_req: Request, res: Response) => {
 // 4. Dynamic Article OG Image Endpoint (/og/:slug.png)
 seoRouter.get('/og/:slug.png', async (req: Request, res: Response) => {
   const slug = req.params.slug;
-  const outPath = path.join(projectRoot, 'public', 'og', `${slug}.png`);
+
+  // Reject slugs that could escape the og cache directory (path traversal).
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(slug)) {
+    res.status(400).end();
+    return;
+  }
+
+  const outDir = path.join(projectRoot, 'public', 'og');
+  const outPath = path.join(outDir, `${slug}.png`);
+  if (outPath !== path.join(outDir, path.basename(`${slug}.png`)) || !outPath.startsWith(outDir + path.sep)) {
+    res.status(400).end();
+    return;
+  }
 
   if (fs.existsSync(outPath)) {
     res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
@@ -258,6 +303,19 @@ function handleArticlePage(req: Request, res: Response) {
   html = html.replace(/<meta\s+name="twitter:image"\s+content=".*?"\s*\/?>/i, `<meta name="twitter:image" content="${escapeHtml(ogImageUrl)}" />`);
   html = html.replace(/<meta\s+name="twitter:image:alt"\s+content=".*?"\s*\/?>/i, `<meta name="twitter:image:alt" content="${escapeHtml(article.title)}" />`);
 
+  // Article body rendered server-side into a <noscript> fallback so crawlers
+  // that do not execute JavaScript still receive the full article text.
+  const seoIntro = [
+    article.dek ? `<p><strong>${escapeHtml(article.dek)}</strong></p>` : '',
+    article.abstract ? `<p>${escapeHtml(article.abstract)}</p>` : '',
+  ].join('');
+  const seoBody = markdownToSeoHtml(article.content || '');
+  const noscriptHtml = `<noscript id="lens-seo-content"><article>`
+    + `<h1>${escapeHtml(article.title)}</h1>`
+    + seoIntro
+    + seoBody
+    + `</article></noscript>`;
+
   // Inject Article Open Graph Specifics and JSON-LD before </head>
   const articleMetaAdditions = `
     <!-- Article Specific OpenGraph Metadata -->
@@ -295,13 +353,97 @@ function handleArticlePage(req: Request, res: Response) {
       }
     }
     </script>
+
+    <!-- Breadcrumb JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "LENS", "item": ${JSON.stringify(siteUrl + '/')} },
+        { "@type": "ListItem", "position": 2, "name": ${JSON.stringify(article.title)}, "item": ${JSON.stringify(articleUrl)} }
+      ]
+    }
+    </script>
   </head>`;
 
   html = html.replace('</head>', articleMetaAdditions);
 
-  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
+  // Place the crawler-visible article content directly in the document body.
+  if (html.includes('<div id="root"></div>')) {
+    html = html.replace('<div id="root"></div>', `<div id="root"></div>\n${noscriptHtml}`);
+  } else {
+    html = html.replace('</body>', `${noscriptHtml}\n</body>`);
+  }
+
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400');
   res.type('html').send(html);
 }
 
 seoRouter.get('/article/:idOrSlug', handleArticlePage);
 seoRouter.get('/makale/:idOrSlug', handleArticlePage);
+
+// 6. Homepage SEO shell: the SPA root HTML has an empty #root, so inject a
+// crawler-visible index of published articles plus ItemList structured data.
+function handleHomePage(req: Request, res: Response): void {
+  const siteUrl = getSiteUrl(req);
+  const distHtmlPath = path.join(projectRoot, 'dist', 'index.html');
+  const srcHtmlPath = path.join(projectRoot, 'index.html');
+  const templatePath = fs.existsSync(distHtmlPath) ? distHtmlPath : srcHtmlPath;
+
+  if (!fs.existsSync(templatePath)) {
+    res.status(500).send('Index template not found.');
+    return;
+  }
+
+  let html = fs.readFileSync(templatePath, 'utf8');
+
+  const articles = db.prepare(`
+    SELECT slug, title, dek, abstract, date
+    FROM articles
+    WHERE status = 'published'
+    ORDER BY date DESC
+  `).all() as Array<{ slug: string; title: string; dek: string; abstract: string; date: string }>;
+
+  const items = articles.map(a => {
+    const url = `${siteUrl}/article/${encodeURIComponent(a.slug)}`;
+    const summary = cleanDescription(a.abstract || a.dek || '', 240);
+    return `<li><a href="${url}">${escapeHtml(a.title)}</a>${summary ? ` — ${escapeHtml(summary)}` : ''}</li>`;
+  }).join('\n        ');
+
+  const noscriptHtml = `<noscript id="lens-seo-content"><main>`
+    + `<h1>LENS // Alperen Toker — Araştırma ve Mühendislik Notları</h1>`
+    + `<p>Alperen Toker'in bilgisayarlı görü, derin öğrenme ve savunma teknolojileri üzerine araştırma ve mühendislik günlüğü.</p>`
+    + (items ? `<ul>\n        ${items}\n      </ul>` : '')
+    + `</main></noscript>`;
+
+  const itemListLd = articles.length ? `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": [
+        ${articles.map((a, idx) => `{ "@type": "ListItem", "position": ${idx + 1}, "url": ${JSON.stringify(`${siteUrl}/article/${encodeURIComponent(a.slug)}`)}, "name": ${JSON.stringify(a.title)} }`).join(',\n        ')}
+      ]
+    }
+    </script>
+  </head>` : '';
+
+  if (itemListLd) {
+    html = html.replace('</head>', itemListLd);
+  }
+
+  // Advertise the RSS feed to crawlers and feed readers.
+  html = html.replace('</head>', `    <link rel="alternate" type="application/rss+xml" title="LENS RSS" href="/feed.xml" />\n  </head>`);
+
+  if (html.includes('<div id="root"></div>')) {
+    html = html.replace('<div id="root"></div>', `<div id="root"></div>\n${noscriptHtml}`);
+  } else {
+    html = html.replace('</body>', `${noscriptHtml}\n</body>`);
+  }
+
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400');
+  res.type('html').send(html);
+}
+
+seoRouter.get('/', handleHomePage);
