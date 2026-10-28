@@ -95,6 +95,12 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 
+  -- Former slugs of renamed articles, so old shared links keep working (301)
+  CREATE TABLE IF NOT EXISTS slug_redirects (
+    old_slug TEXT PRIMARY KEY COLLATE NOCASE,
+    article_id TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS rate_limits (
     ip TEXT PRIMARY KEY,
     attempts INTEGER NOT NULL DEFAULT 0,
@@ -233,3 +239,16 @@ export function saveArticle(art: Article): Article {
 }
 
 
+// Remember an article's previous slug so links to it can be redirected.
+// A slug that becomes current again stops being a redirect.
+export function recordSlugChange(articleId: string, oldSlug: string, newSlug: string): void {
+  if (!oldSlug || oldSlug.toLowerCase() === newSlug.toLowerCase()) return;
+  db.prepare('INSERT OR REPLACE INTO slug_redirects (old_slug, article_id) VALUES (?, ?)').run(oldSlug, articleId);
+  db.prepare('DELETE FROM slug_redirects WHERE old_slug = ?').run(newSlug);
+}
+
+// Resolve a former slug to the article that now owns it.
+export function findArticleIdBySlugRedirect(slug: string): string | null {
+  const row = db.prepare('SELECT article_id FROM slug_redirects WHERE old_slug = ?').get(slug) as { article_id: string } | undefined;
+  return row?.article_id ?? null;
+}

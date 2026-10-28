@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
-import { db, rowToArticle } from '../db.ts';
+import { db, rowToArticle, findArticleIdBySlugRedirect } from '../db.ts';
 import { escapeHtml, markdownToSeoHtml } from '../lib/seoRender.ts';
 import { Article } from '../../src/types/index.ts';
 
@@ -282,6 +282,13 @@ function handleArticlePage(req: Request, res: Response) {
   // the draft because the SPA fetches it from the API with their session.
   const article = findPublishedArticle(idOrSlug);
   if (!article) {
+    // Old link to a renamed article: permanently redirect to its current URL.
+    const redirectedId = findArticleIdBySlugRedirect(idOrSlug);
+    const target = redirectedId ? findPublishedArticle(redirectedId) : null;
+    if (target) {
+      res.redirect(301, `/article/${encodeURIComponent(target.slug)}`);
+      return;
+    }
     res.status(404).type('html').send(html);
     return;
   }

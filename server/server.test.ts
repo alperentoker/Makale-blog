@@ -515,3 +515,49 @@ test('18. Security: Search snippets are HTML-escaped before highlighting', async
   assert.ok(html.includes('<mark class="lens-search-hit">termal</mark>'), 'search hits must still be highlighted');
   assert.equal(renderSearchSnippet(null), undefined);
 });
+
+test('19. Renamed article slugs keep resolving through redirects', async () => {
+  const { recordSlugChange, findArticleIdBySlugRedirect } = await import('./db.ts');
+  const stamp = Date.now();
+  const art: Article = {
+    id: `slug-redirect-${stamp}`,
+    slug: `eski-slug-${stamp}`,
+    title: 'Yönlendirme Testi',
+    dek: '',
+    abstract: '',
+    authors: [{ name: 'Alperen Toker', affiliation: 'LENS' }],
+    date: '2026-10-28',
+    displayDate: '28 Ekim 2026',
+    readingTime: '1 dk',
+    version: 'v1.0',
+    category: 'Kenar Yapay Zeka',
+    tags: ['Test'],
+    status: 'published',
+    doi: '',
+    content: 'İçerik',
+    bibtex: '',
+  };
+
+  saveArticle(art);
+  try {
+    saveArticle({ ...art, slug: `yeni-slug-${stamp}` });
+    recordSlugChange(art.id, art.slug, `yeni-slug-${stamp}`);
+    assert.equal(findArticleIdBySlugRedirect(art.slug), art.id, 'old slug must redirect to the article');
+    assert.equal(findArticleIdBySlugRedirect(art.slug.toUpperCase()), art.id, 'redirect lookup is case-insensitive');
+
+    // Renaming back makes the slug current again, so it must stop redirecting.
+    recordSlugChange(art.id, `yeni-slug-${stamp}`, art.slug);
+    assert.equal(findArticleIdBySlugRedirect(art.slug), null);
+  } finally {
+    db.prepare('DELETE FROM articles WHERE id = ?').run(art.id);
+  }
+  assert.equal(findArticleIdBySlugRedirect(`yeni-slug-${stamp}`), null, 'redirects are removed with the article');
+});
+
+test('20. Server slugify transliterates Turkish titles', async () => {
+  const { slugify } = await import('./routes/articles.ts');
+  assert.equal(
+    slugify('Karadan Havaya Termal Görüş: LWIR Görüntülerde İnsan ve Araç — Yol Haritası'),
+    'karadan-havaya-termal-gorus-lwir-goruntulerde-insan-ve-arac-yol-haritasi',
+  );
+});

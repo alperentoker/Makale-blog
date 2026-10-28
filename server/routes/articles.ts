@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db, rowToArticle, saveArticle } from '../db.ts';
+import { db, rowToArticle, saveArticle, recordSlugChange, findArticleIdBySlugRedirect } from '../db.ts';
 import { requireAuth } from '../auth.ts';
 import { escapeHtml } from '../lib/seoRender.ts';
 import { invalidateArticleCard } from './seo.ts';
@@ -21,7 +21,7 @@ export function renderSearchSnippet(raw: unknown): string | undefined {
 }
 
 // Helper to generate slug from title if not provided
-function slugify(text: string): string {
+export function slugify(text: string): string {
   return text
     .toString()
     .toLowerCase()
@@ -132,10 +132,16 @@ articlesRouter.get('/', (req: Request, res: Response) => {
 
 // 2. GET /api/articles/:idOrSlug — Single article with draft protection
 articlesRouter.get('/:idOrSlug', (req: Request, res: Response) => {
-  const { idOrSlug } = req.params;
+  const idOrSlug = String(req.params.idOrSlug);
   const isAdmin = !!req.authenticated;
 
   let row = db.prepare('SELECT * FROM articles WHERE id = ? OR LOWER(slug) = LOWER(?)').get(idOrSlug, idOrSlug);
+
+  // Former slug of a renamed article (the SPA may still be on the old URL)
+  if (!row) {
+    const redirectedId = findArticleIdBySlugRedirect(idOrSlug);
+    if (redirectedId) row = db.prepare('SELECT * FROM articles WHERE id = ?').get(redirectedId);
+  }
 
   // Backward compatibility alias: former 'eo-ir' roadmap slug/id maps to current roadmap article
   if (!row && (idOrSlug.includes('eo-ir') || idOrSlug.includes('dualmode') || idOrSlug.includes('roadmap') || idOrSlug.includes('benchmark'))) {
@@ -238,6 +244,7 @@ articlesRouter.put('/:id', requireAuth, (req: Request, res: Response) => {
   };
 
   saveArticle(updatedArticle);
+  recordSlugChange(id, existing.slug, slug);
   // Card text (title, category, date, author) may have changed; drop the cached
   // card under the old slug so it is re-rendered on the next request.
   invalidateArticleCard(existing.slug);
