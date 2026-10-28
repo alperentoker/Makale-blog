@@ -35,16 +35,48 @@ function cleanDescription(text: string = '', maxLength: number = 200): string {
   return plain.slice(0, maxLength - 1) + '…';
 }
 
+// Resolve an article for public, unauthenticated pages. Drafts and articles
+// under review are never returned, including through the legacy alias.
+export function findPublishedArticle(idOrSlug: string): Article | null {
+  let row = db.prepare("SELECT * FROM articles WHERE (slug = ? OR id = ?) AND status = 'published'").get(idOrSlug, idOrSlug);
+  if (!row && (idOrSlug.includes('eo-ir') || idOrSlug.includes('dualmode') || idOrSlug.includes('roadmap') || idOrSlug.includes('benchmark'))) {
+    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap' AND status = 'published'").get();
+  }
+  return row ? rowToArticle(row) : null;
+}
+
+const ogDir = path.join(projectRoot, 'public', 'og');
+
+function articleCardPath(slug: string): string | null {
+  const outPath = path.join(ogDir, `${slug}.png`);
+  // Guard against slugs that could escape the og cache directory.
+  if (path.dirname(outPath) !== ogDir) return null;
+  return outPath;
+}
+
+// Remove a cached OG card so the next request renders it from fresh metadata
+// (called when an article's title/metadata changes or it is deleted).
+export function invalidateArticleCard(slug: string): void {
+  const outPath = slug ? articleCardPath(slug) : null;
+  if (outPath) fs.rmSync(outPath, { force: true });
+}
+
+// In-flight generations keyed by output path, so concurrent first requests
+// share a single python3 process instead of spawning one each.
+const pendingCards = new Map<string, Promise<string>>();
+
 // Asynchronously generates an article OG image card if not already created
 export function generateArticleCardAsync(art: Article): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const outDir = path.join(projectRoot, 'public', 'og');
-    if (!fs.existsSync(outDir)) {
-      fs.mkdirSync(outDir, { recursive: true });
-    }
-    const outPath = path.join(outDir, `${art.slug}.png`);
-    if (fs.existsSync(outPath)) {
-      return resolve(outPath);
+  const outPath = articleCardPath(art.slug);
+  if (!outPath) return Promise.reject(new Error('Invalid article slug for OG card'));
+  if (fs.existsSync(outPath)) return Promise.resolve(outPath);
+
+  const pending = pendingCards.get(outPath);
+  if (pending) return pending;
+
+  const job = new Promise<string>((resolve, reject) => {
+    if (!fs.existsSync(ogDir)) {
+      fs.mkdirSync(ogDir, { recursive: true });
     }
 
     const scriptPath = path.join(projectRoot, 'server', 'og-generator.py');
@@ -72,7 +104,10 @@ export function generateArticleCardAsync(art: Article): Promise<string> {
     child.on('error', (err) => {
       reject(err);
     });
-  });
+  }).finally(() => pendingCards.delete(outPath));
+
+  pendingCards.set(outPath, job);
+  return job;
 }
 
 // 1. Dynamic XML Sitemap
@@ -190,7 +225,7 @@ seoRouter.get('/og-image.png', (_req: Request, res: Response) => {
 
 // 4. Dynamic Article OG Image Endpoint (/og/:slug.png)
 seoRouter.get('/og/:slug.png', async (req: Request, res: Response) => {
-  const slug = req.params.slug;
+  const slug = String(req.params.slug);
 
   // Reject slugs that could escape the og cache directory (path traversal).
   if (!/^[a-z0-9][a-z0-9._-]*$/i.test(slug)) {
@@ -198,27 +233,10 @@ seoRouter.get('/og/:slug.png', async (req: Request, res: Response) => {
     return;
   }
 
-  const outDir = path.join(projectRoot, 'public', 'og');
-  const outPath = path.join(outDir, `${slug}.png`);
-  if (outPath !== path.join(outDir, path.basename(`${slug}.png`)) || !outPath.startsWith(outDir + path.sep)) {
-    res.status(400).end();
-    return;
-  }
-
-  if (fs.existsSync(outPath)) {
-    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-    res.setHeader('Content-Type', 'image/png');
-    res.sendFile(outPath, { dotfiles: 'allow' });
-    return;
-  }
-
-  // Look up article (with alias fallback)
-  let row = db.prepare('SELECT * FROM articles WHERE slug = ? OR id = ?').get(slug, slug);
-  if (!row && (slug.includes('eo-ir') || slug.includes('dualmode') || slug.includes('roadmap') || slug.includes('benchmark'))) {
-    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap'").get();
-  }
-  if (row) {
-    const article = rowToArticle(row);
+  // Always resolve through the published-article lookup: a cached card for a
+  // draft (or one left behind by a renamed article) must never be served.
+  const article = findPublishedArticle(slug);
+  if (article) {
     try {
       const generatedPath = await generateArticleCardAsync(article);
       res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
@@ -243,7 +261,7 @@ seoRouter.get('/og/:slug.png', async (req: Request, res: Response) => {
 
 // 5. Dynamic HTML Meta Injection for Articles (/article/:idOrSlug & /makale/:idOrSlug)
 function handleArticlePage(req: Request, res: Response) {
-  const idOrSlug = req.params.idOrSlug;
+  const idOrSlug = String(req.params.idOrSlug);
   const siteUrl = getSiteUrl(req);
 
   // Read HTML template (dist/index.html in production, fallback to index.html in dev)
@@ -258,18 +276,16 @@ function handleArticlePage(req: Request, res: Response) {
 
   let html = fs.readFileSync(templatePath, 'utf8');
 
-  // Query article (with backward-compatible alias fallback for former eo-ir roadmap URLs)
-  let row = db.prepare('SELECT * FROM articles WHERE slug = ? OR id = ?').get(idOrSlug, idOrSlug);
-  if (!row && (idOrSlug.includes('eo-ir') || idOrSlug.includes('dualmode') || idOrSlug.includes('roadmap') || idOrSlug.includes('benchmark'))) {
-    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap'").get();
-  }
-  if (!row) {
-    // Return standard template if not found
-    res.type('html').send(html);
+  // Query published article (with backward-compatible alias fallback for former
+  // eo-ir roadmap URLs). Drafts get the bare SPA shell: no title, abstract or
+  // body leaks into the server-rendered HTML. An authenticated admin still sees
+  // the draft because the SPA fetches it from the API with their session.
+  const article = findPublishedArticle(idOrSlug);
+  if (!article) {
+    res.status(404).type('html').send(html);
     return;
   }
 
-  const article = rowToArticle(row);
   const title = `${article.title} // LENS`;
   const rawDesc = article.abstract || article.dek || 'LENS Araştırma & Mühendislik Raporu';
   const desc = cleanDescription(rawDesc, 190);
