@@ -1,9 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { db, rowToArticle, saveArticle } from '../db.ts';
 import { requireAuth } from '../auth.ts';
+import { escapeHtml } from '../lib/seoRender.ts';
+import { invalidateArticleCard } from './seo.ts';
 import { Article } from '../../src/types/index.ts';
 
 export const articlesRouter = Router();
+
+// FTS5 snippet() returns raw article text, so it is wrapped in control-char
+// sentinels instead of <mark> tags, HTML-escaped, and only then are the
+// sentinels turned into <mark> — the client renders it via innerHTML.
+const SNIPPET_OPEN = '\u0002';
+const SNIPPET_CLOSE = '\u0003';
+
+export function renderSearchSnippet(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || !raw) return undefined;
+  return escapeHtml(raw.replace(/\s+/g, ' '))
+    .replaceAll(SNIPPET_OPEN, '<mark class="lens-search-hit">')
+    .replaceAll(SNIPPET_CLOSE, '</mark>');
+}
 
 // Helper to generate slug from title if not provided
 function slugify(text: string): string {
@@ -53,7 +68,7 @@ articlesRouter.get('/', (req: Request, res: Response) => {
       let query = `
         SELECT ${selectFields},
                bm25(articles_fts, 5.0, 3.0, 2.0, 2.0, 1.0) AS rank,
-               snippet(articles_fts, -1, '<mark class="lens-search-hit">', '</mark>', '...', 28) AS searchSnippet
+               snippet(articles_fts, -1, char(2), char(3), '...', 28) AS searchSnippet
         FROM articles a
         JOIN articles_fts ON articles_fts.id = a.id
         WHERE articles_fts MATCH ?
@@ -74,9 +89,9 @@ articlesRouter.get('/', (req: Request, res: Response) => {
 
       query += ' ORDER BY rank ASC, a.date DESC';
 
-      const rows = db.prepare(query).all(...params);
+      const rows = db.prepare(query).all(...params) as any[];
       if (rows.length > 0) {
-        res.json(rows.map(rowToArticle));
+        res.json(rows.map((row) => rowToArticle({ ...row, searchSnippet: renderSearchSnippet(row.searchSnippet) })));
         return;
       }
     } catch (err) {
@@ -223,18 +238,24 @@ articlesRouter.put('/:id', requireAuth, (req: Request, res: Response) => {
   };
 
   saveArticle(updatedArticle);
+  // Card text (title, category, date, author) may have changed; drop the cached
+  // card under the old slug so it is re-rendered on the next request.
+  invalidateArticleCard(existing.slug);
   res.json(updatedArticle);
 });
 
 // 5. DELETE /api/articles/:id — Delete article (Admin only)
 articlesRouter.delete('/:id', requireAuth, (req: Request, res: Response) => {
   const { id } = req.params;
+  const existing = db.prepare('SELECT slug FROM articles WHERE id = ?').get(id) as { slug: string } | undefined;
   const info = db.prepare('DELETE FROM articles WHERE id = ?').run(id);
 
   if (info.changes === 0) {
     res.status(404).json({ error: 'Silinecek makale bulunamadı.' });
     return;
   }
+
+  if (existing) invalidateArticleCard(existing.slug);
 
   res.json({ success: true, message: 'Makale başarıyla silindi.' });
 });

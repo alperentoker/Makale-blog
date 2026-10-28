@@ -472,3 +472,46 @@ test('20. SEO: Markdown is rendered to semantic escaped HTML for crawlers', () =
 
 
 
+test('17. Security: Public SEO/OG lookup never resolves drafts', async () => {
+  const { findPublishedArticle } = await import('./routes/seo.ts');
+  const stamp = Date.now();
+  const base: Article = {
+    id: `seo-draft-${stamp}`,
+    slug: `seo-draft-slug-${stamp}`,
+    title: 'Yayınlanmamış SEO Taslağı',
+    dek: '',
+    abstract: 'Sızmaması gereken özet',
+    authors: [{ name: 'Alperen Toker', affiliation: 'LENS' }],
+    date: '2026-10-28',
+    displayDate: '28 Ekim 2026',
+    readingTime: '1 dk',
+    version: 'v1.0',
+    category: 'Kenar Yapay Zeka',
+    tags: ['Test'],
+    status: 'draft',
+    doi: '',
+    content: 'Gizli taslak içeriği',
+    bibtex: '',
+  };
+
+  saveArticle(base);
+  try {
+    assert.equal(findPublishedArticle(base.slug), null, 'draft must not resolve by slug');
+    assert.equal(findPublishedArticle(base.id), null, 'draft must not resolve by id');
+
+    saveArticle({ ...base, status: 'published' });
+    assert.equal(findPublishedArticle(base.slug)?.id, base.id, 'published article must resolve by slug');
+  } finally {
+    db.prepare('DELETE FROM articles WHERE id = ?').run(base.id);
+  }
+});
+
+test('18. Security: Search snippets are HTML-escaped before highlighting', async () => {
+  const { renderSearchSnippet } = await import('./routes/articles.ts');
+  const html = renderSearchSnippet('List<T> <img src=x onerror=alert(1)> \u0002termal\u0003 görüş');
+  assert.ok(html);
+  assert.ok(!/<img/i.test(html), 'raw HTML in article content must be escaped');
+  assert.ok(html.includes('List&lt;T&gt;'), 'generic type syntax must survive as text');
+  assert.ok(html.includes('<mark class="lens-search-hit">termal</mark>'), 'search hits must still be highlighted');
+  assert.equal(renderSearchSnippet(null), undefined);
+});

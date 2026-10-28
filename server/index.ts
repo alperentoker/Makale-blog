@@ -97,14 +97,13 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsDir, {
-  setHeaders: (res, filePath) => {
+  setHeaders: (res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
     // Uploaded SVGs are sanitized on write; this CSP adds a second layer so a
-    // served SVG can never execute scripts or load external resources.
-    if (filePath.toLowerCase().endsWith('.svg')) {
-      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
-    }
+    // served upload can never execute scripts or load external resources.
+    // Applied to every upload to match nginx.conf (harmless for raster images).
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
   },
 }));
 
