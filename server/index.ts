@@ -1,9 +1,12 @@
+// Must stay the first import: ESM evaluates imports before this module's body,
+// so db.ts / upload.ts would otherwise read DATA_DIR, UPLOADS_DIR, ... before
+// .env is loaded.
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
 
 import { db } from './db.ts';
 import { authenticateUser, cleanExpiredSessions } from './auth.ts';
@@ -12,13 +15,14 @@ import { articlesRouter } from './routes/articles.ts';
 import { seoRouter } from './routes/seo.ts';
 import { configureTrustProxy } from './net.ts';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
+// Bind to loopback by default: Nginx is the only intended client, so the API
+// must not be reachable directly (which would bypass Nginx and its headers).
+const HOST = process.env.HOST || '127.0.0.1';
 
 // 1. Disable X-Powered-By header (Information disclosure prevention)
 app.disable('x-powered-by');
@@ -176,8 +180,8 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 setInterval(cleanExpiredSessions, 60 * 60 * 1000);
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`[LENS CMS API] Server running on http://127.0.0.1:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`[LENS CMS API] Server running on http://${HOST}:${PORT}`);
 });
 
 export default app;

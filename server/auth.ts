@@ -60,6 +60,22 @@ export async function setMasterPassword(password: string): Promise<boolean> {
   return true;
 }
 
+// First-run setup: hash, then set the password only if none exists yet. The
+// existence check and the write share one synchronous transaction, so two
+// concurrent setup requests cannot both claim the admin account.
+export async function setInitialMasterPassword(password: string): Promise<boolean> {
+  const { hash, salt } = await hashPassword(password);
+  const insert = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+
+  const tx = db.transaction(() => {
+    if (isMasterPasswordSet()) return false;
+    insert.run('master_password_hash', hash);
+    insert.run('master_password_salt', salt);
+    return true;
+  });
+  return tx();
+}
+
 // Verify credentials against stored master password asynchronously
 export async function verifyMasterPassword(password: string): Promise<boolean> {
   const hashRow = db.prepare("SELECT value FROM settings WHERE key = 'master_password_hash'").get() as { value?: string } | undefined;
