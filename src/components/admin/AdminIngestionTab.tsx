@@ -9,7 +9,6 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { Article } from '../../types';
-import { parsePdfFile } from '../../lib/pdfParser';
 import { extractFrontmatter, slugify, estimateReadingTime } from '../../lib/parser';
 import { resolveAcademicIdentifierApi } from '../../lib/api';
 
@@ -91,6 +90,8 @@ export const AdminIngestionTab: React.FC<AdminIngestionTabProps> = ({
     setIsIngesting(true);
     try {
       if (file.name.endsWith('.pdf')) {
+        // pdf.js (~1.7 MB incl. worker) is only fetched when a PDF is dropped.
+        const { parsePdfFile } = await import('../../lib/pdfParser');
         const parsed = await parsePdfFile(file);
         const newArt: Article = {
           id: `art-${Date.now()}`,

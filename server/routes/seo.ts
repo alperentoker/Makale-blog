@@ -36,12 +36,9 @@ function cleanDescription(text: string = '', maxLength: number = 200): string {
 }
 
 // Resolve an article for public, unauthenticated pages. Drafts and articles
-// under review are never returned, including through the legacy alias.
+// under review are never returned.
 export function findPublishedArticle(idOrSlug: string): Article | null {
-  let row = db.prepare("SELECT * FROM articles WHERE (slug = ? OR id = ?) AND status = 'published'").get(idOrSlug, idOrSlug);
-  if (!row && (idOrSlug.includes('eo-ir') || idOrSlug.includes('dualmode') || idOrSlug.includes('roadmap') || idOrSlug.includes('benchmark'))) {
-    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap' AND status = 'published'").get();
-  }
+  const row = db.prepare("SELECT * FROM articles WHERE (slug = ? OR id = ?) AND status = 'published'").get(idOrSlug, idOrSlug);
   return row ? rowToArticle(row) : null;
 }
 
@@ -276,8 +273,7 @@ function handleArticlePage(req: Request, res: Response) {
 
   let html = fs.readFileSync(templatePath, 'utf8');
 
-  // Query published article (with backward-compatible alias fallback for former
-  // eo-ir roadmap URLs). Drafts get the bare SPA shell: no title, abstract or
+  // Query the published article. Drafts get the bare SPA shell: no title, abstract or
   // body leaks into the server-rendered HTML. An authenticated admin still sees
   // the draft because the SPA fetches it from the API with their session.
   const article = findPublishedArticle(idOrSlug);

@@ -314,19 +314,6 @@ test('12. Dynamic Article OpenGraph Cards: generator and fallback are in place',
   assert.ok(fs.existsSync(path.join(process.cwd(), 'public', 'og-image.png')), 'Fallback OG image must exist');
 });
 
-test('13. Backward-Compatibility Alias Resolution: Legacy roadmap URLs map to active article', () => {
-  // Check that querying former 'eo-ir' slug resolves to art-benchmark-roadmap
-  const legacySlug = 'eo-ir-dualmode-detection-yolo-nas-or-rt-detr-which-is-better';
-  let row = db.prepare('SELECT * FROM articles WHERE slug = ? OR id = ?').get(legacySlug, legacySlug);
-  if (!row && (legacySlug.includes('eo-ir') || legacySlug.includes('dualmode') || legacySlug.includes('roadmap') || legacySlug.includes('benchmark'))) {
-    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap'").get();
-  }
-  assert.ok(row, 'Legacy slug must successfully resolve to roadmap row');
-  const article = rowToArticle(row);
-  assert.equal(article.id, 'art-benchmark-roadmap');
-  assert.equal(article.slug, 'taktik-termal-lwir-nesne-tespiti-mimari-turnuvasi-ve-capraz-perspektif-cokus-analizi-yol-haritasi');
-});
-
 test('14. Database Production State: Exactly 1 real published article, strictly 0 mock articles', () => {
   const publishedRows = db.prepare("SELECT id, slug, title, status FROM articles WHERE status = 'published'").all() as Array<{ id: string; slug: string; title: string }>;
   assert.equal(publishedRows.length, 1, 'Production database must contain exactly 1 published article');

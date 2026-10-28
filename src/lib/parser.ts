@@ -1,5 +1,7 @@
 import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { TocHeading } from '../types';
+import { slugify } from './slug';
 
 export { renderInlineMarkdown } from './inlineMarkdown';
 
@@ -114,30 +116,7 @@ export function extractFrontmatter(rawContent: string): { frontmatter: Frontmatt
   return { frontmatter, body: remainingLines.join('\n').trim() };
 }
 
-export function slugify(text: string): string {
-  const trMap: Record<string, string> = {
-    'ç': 'c', 'Ç': 'c',
-    'ğ': 'g', 'Ğ': 'g',
-    'ı': 'i', 'I': 'i', 'İ': 'i',
-    'ö': 'o', 'Ö': 'o',
-    'ş': 's', 'Ş': 's',
-    'ü': 'u', 'Ü': 'u',
-  };
-
-  let str = text;
-  for (const key of Object.keys(trMap)) {
-    str = str.replace(new RegExp(key, 'g'), trMap[key]);
-  }
-
-  const slug = str
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  return slug || 'bolum';
-}
+export { slugify };
 
 export function extractHeadings(markdown: string): TocHeading[] {
   const headings: TocHeading[] = [];

@@ -69,7 +69,7 @@ export const ArticleHeroHud: React.FC<ArticleHeroHudProps> = ({
       {/* TACTICAL TELEMETRY HUD CARD (Linear / Stripe Press Aesthetic) */}
       {(() => {
         const protocol = article.telemetry?.protocol;
-        const isProtocolVisible = protocol?.enabled ?? (article.id === 'art-benchmark-roadmap' || !!protocol?.metrics?.length);
+        const isProtocolVisible = protocol?.enabled ?? !!protocol?.metrics?.length;
         if (!isProtocolVisible) return null;
 
         const protocolTitle = protocol?.title || 'DENEY PROTOKOLÜ // SABİT HESAPLAMA BÜTÇESİ';

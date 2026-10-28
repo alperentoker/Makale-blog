@@ -1,6 +1,6 @@
 # LENS // lens.atoker.dev VPS Sunucu Kurulum & Canlıya Alma Kılavuzu
 
-Bu kılavuz, **LENS** platformunu `atoker.dev` ana alan adınız altında **`lens.atoker.dev`** alt alan adı (subdomain) olarak VPS sunucunuzda (Ubuntu/Debian) **Plan B (Gerçek CMS + SQLite Veritabanı + Node.js API)** mimarisiyle canlıya almanız için gerekli tüm adımları içerir.
+Bu kılavuz, **LENS** platformunu `atoker.dev` ana alan adınız altında **`lens.atoker.dev`** alt alan adı (subdomain) olarak VPS sunucunuzda (Ubuntu/Debian) (Node.js API + SQLite) canlıya almanız için gerekli tüm adımları içerir.
 
 ---
 

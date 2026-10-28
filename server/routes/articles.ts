@@ -3,6 +3,7 @@ import { db, rowToArticle, saveArticle, recordSlugChange, findArticleIdBySlugRed
 import { requireAuth } from '../auth.ts';
 import { escapeHtml } from '../lib/seoRender.ts';
 import { invalidateArticleCard } from './seo.ts';
+import { slugify as baseSlugify } from '../../src/lib/slug.ts';
 import { Article } from '../../src/types/index.ts';
 
 export const articlesRouter = Router();
@@ -20,24 +21,8 @@ export function renderSearchSnippet(raw: unknown): string | undefined {
     .replaceAll(SNIPPET_CLOSE, '</mark>');
 }
 
-// Helper to generate slug from title if not provided
-export function slugify(text: string): string {
-  return text
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/ğ/g, 'g')
-    .replace(/ü/g, 'u')
-    .replace(/ş/g, 's')
-    .replace(/ı/g, 'i')
-    .replace(/ö/g, 'o')
-    .replace(/ç/g, 'c')
-    .replace(/\s+/g, '-')
-    .replace(/[^\w-]+/g, '')
-    .replace(/--+/g, '-')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '');
-}
+// Article slugs use the shared client/server implementation.
+export const slugify = (text: string): string => baseSlugify(String(text), 'makale');
 
 // Helper to sanitize raw search terms into safe SQLite FTS5 query tokens
 function sanitizeFtsQuery(raw: string): string {
@@ -141,11 +126,6 @@ articlesRouter.get('/:idOrSlug', (req: Request, res: Response) => {
   if (!row) {
     const redirectedId = findArticleIdBySlugRedirect(idOrSlug);
     if (redirectedId) row = db.prepare('SELECT * FROM articles WHERE id = ?').get(redirectedId);
-  }
-
-  // Backward compatibility alias: former 'eo-ir' roadmap slug/id maps to current roadmap article
-  if (!row && (idOrSlug.includes('eo-ir') || idOrSlug.includes('dualmode') || idOrSlug.includes('roadmap') || idOrSlug.includes('benchmark'))) {
-    row = db.prepare("SELECT * FROM articles WHERE id = 'art-benchmark-roadmap'").get();
   }
 
   if (!row) {
