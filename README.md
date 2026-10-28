@@ -23,7 +23,6 @@ IEEE, Distill.pub ve Stripe Press kalitesinde tasarlanmış; savunma sistemleri,
 - **KaTeX LaTeX Matematik Desteği:** Termal Stefan-Boltzmann emisyon denklemleri, IoU kayıp fonksiyonları ve uzamsal-zamansal korelasyon matrisleri.
 - **İnteraktif Veri Tabloları:** Gerçek zamanlı arama, sütun bazlı sıralama (mAP, gecikme, watt) ve tek tıkla **CSV** / **JSON** dışa aktarma araçları.
 - **Medya & Sensör Lightbox:** Sensör çıktıları için tam ekran yakınlaştırma (Zoom In/Out), kaydırma (Pan) ve görüntü indirme.
-- **BibTeX, IEEE ve APA Alıntı Kartı:** Makale sonunda tek tıkla kopyalanabilir BibTeX kod bloğu, IEEE/APA referansları ve `.bib` dosyası indirme.
 - **Web / IEEE PDF İkili Görünüm Anahtarı:**
   - *Web Modu:* Akıcı editoryal Markdown okuma deneyimi.
   - *IEEE PDF Modu:* İki sütunlu akademik bildiri düzeni (running header, abstract, keywords, 2-column body) ve tarayıcıdan doğrudan baskı / PDF kaydetme desteği.
@@ -39,7 +38,12 @@ IEEE, Distill.pub ve Stripe Press kalitesinde tasarlanmış; savunma sistemleri,
 - **Canlı SEO & Sosyal Kart Önizleyici:** Google SERP arama sonucu snippet'i ve 1200x630 Twitter/X & LinkedIn paylaşım kartı canlı simülasyonu.
 - **Yayın Durumu Yönetimi:** Taslak (*Draft*), İncelemede (*Under Review*) ve Yayında (*Published*) durumları. Yayınlandığında kutlama konfeti animasyonu.
 - **Sunucu Kalıcılığı (SQLite & Node.js API):** Düzenlemeler, yeni makaleler ve taslaklar sunucu tarafındaki SQLite (`data/lens.db`) veritabanında saklanır; tüm ziyaretçiler ve cihazlar aynı merkezi arşivi görür.
-- **Kademeli Güvenlik:** `scrypt` hash, HttpOnly oturum çerezleri, IP tabanlı brute-force koruması ve taslak izolasyonu (yalnızca yayınlanmış içerik kamuya açıktır).
+- **Kademeli Güvenlik:**
+  - `scrypt` parola hash'i, veritabanında hash'lenmiş oturum token'ları, `HttpOnly` + `SameSite=strict` çerezler.
+  - IP tabanlı brute-force kilidi; `trust proxy` yalnızca Nginx ve Cloudflare adreslerine güvenir, böylece `X-Forwarded-For` taklidiyle sayaç sıfırlanamaz.
+  - Taslak izolasyonu: API, SEO sayfaları (`/article/...`) ve OG kartları yalnızca yayınlanmış makaleleri gösterir.
+  - Upload'larda magic-byte doğrulaması, SVG temizleme ve `sandbox` CSP; API yalnızca `127.0.0.1` üzerinde dinler.
+- **SEO:** `/article/:slug` sayfaları sunucuda başlık, açıklama, canonical, OpenGraph/Twitter etiketleri, JSON-LD ve `<noscript>` içerikle zenginleştirilir; `sitemap.xml`, `feed.xml` ve makale başına otomatik üretilen 1200x630 OG kartları. Slug'ı değişen makalelerin eski adresleri 301 ile yeni adrese yönlenir.
 
 ---
 

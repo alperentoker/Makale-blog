@@ -33,3 +33,6 @@ data/*.db-*
 .env
 .env.*
 !.env.example
+
+# On-demand OpenGraph card cache (rendered by server/og-generator.py)
+public/og/
