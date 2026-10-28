@@ -13,14 +13,14 @@ const projectRoot = path.join(__dirname, '..', '..');
 
 export const seoRouter = Router();
 
-// Helper to resolve site URL dynamically matching incoming request or configured environment
+// Resolve the canonical site URL. The configured SITE_URL wins so that
+// client-controlled Host / X-Forwarded-Host headers can never rewrite
+// canonical, sitemap or OG URLs; the request host is only a dev fallback.
 function getSiteUrl(req: Request): string {
-  const host = (req.headers['x-forwarded-host'] as string) || req.get('host');
-  if (host) {
-    const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
-    return `${proto}://${host}`;
+  if (process.env.SITE_URL) {
+    return process.env.SITE_URL.replace(/\/$/, '');
   }
-  return (process.env.SITE_URL || 'https://lens.atoker.dev').replace(/\/$/, '');
+  return `${req.protocol}://${req.get('host') || '127.0.0.1:3001'}`;
 }
 
 // Clean string for description meta tags (strip markdown syntax, newlines, etc.)
@@ -298,26 +298,26 @@ function handleArticlePage(req: Request, res: Response) {
   generateArticleCardAsync(article).catch(() => {});
 
   // Replace Title & Description
-  html = html.replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
-  html = html.replace(/<meta\s+name="title"\s+content=".*?"\s*\/?>/i, `<meta name="title" content="${escapeHtml(title)}" />`);
-  html = html.replace(/<meta\s+name="description"\s+content=".*?"\s*\/?>/i, `<meta name="description" content="${escapeHtml(desc)}" />`);
-  html = html.replace(/<link\s+rel="canonical"\s+href=".*?"\s*\/?>/i, `<link rel="canonical" href="${escapeHtml(articleUrl)}" />`);
+  html = html.replace(/<title>.*?<\/title>/i, () => `<title>${escapeHtml(title)}</title>`);
+  html = html.replace(/<meta\s+name="title"\s+content=".*?"\s*\/?>/i, () => `<meta name="title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta\s+name="description"\s+content=".*?"\s*\/?>/i, () => `<meta name="description" content="${escapeHtml(desc)}" />`);
+  html = html.replace(/<link\s+rel="canonical"\s+href=".*?"\s*\/?>/i, () => `<link rel="canonical" href="${escapeHtml(articleUrl)}" />`);
 
   // Replace Open Graph Tags
-  html = html.replace(/<meta\s+property="og:type"\s+content=".*?"\s*\/?>/i, `<meta property="og:type" content="article" />`);
-  html = html.replace(/<meta\s+property="og:url"\s+content=".*?"\s*\/?>/i, `<meta property="og:url" content="${escapeHtml(articleUrl)}" />`);
-  html = html.replace(/<meta\s+property="og:title"\s+content=".*?"\s*\/?>/i, `<meta property="og:title" content="${escapeHtml(title)}" />`);
-  html = html.replace(/<meta\s+property="og:description"\s+content=".*?"\s*\/?>/i, `<meta property="og:description" content="${escapeHtml(desc)}" />`);
-  html = html.replace(/<meta\s+property="og:image"\s+content=".*?"\s*\/?>/i, `<meta property="og:image" content="${escapeHtml(ogImageUrl)}" />`);
-  html = html.replace(/<meta\s+property="og:image:secure_url"\s+content=".*?"\s*\/?>/i, `<meta property="og:image:secure_url" content="${escapeHtml(ogImageUrl)}" />`);
-  html = html.replace(/<meta\s+property="og:image:alt"\s+content=".*?"\s*\/?>/i, `<meta property="og:image:alt" content="${escapeHtml(article.title)}" />`);
+  html = html.replace(/<meta\s+property="og:type"\s+content=".*?"\s*\/?>/i, () => `<meta property="og:type" content="article" />`);
+  html = html.replace(/<meta\s+property="og:url"\s+content=".*?"\s*\/?>/i, () => `<meta property="og:url" content="${escapeHtml(articleUrl)}" />`);
+  html = html.replace(/<meta\s+property="og:title"\s+content=".*?"\s*\/?>/i, () => `<meta property="og:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta\s+property="og:description"\s+content=".*?"\s*\/?>/i, () => `<meta property="og:description" content="${escapeHtml(desc)}" />`);
+  html = html.replace(/<meta\s+property="og:image"\s+content=".*?"\s*\/?>/i, () => `<meta property="og:image" content="${escapeHtml(ogImageUrl)}" />`);
+  html = html.replace(/<meta\s+property="og:image:secure_url"\s+content=".*?"\s*\/?>/i, () => `<meta property="og:image:secure_url" content="${escapeHtml(ogImageUrl)}" />`);
+  html = html.replace(/<meta\s+property="og:image:alt"\s+content=".*?"\s*\/?>/i, () => `<meta property="og:image:alt" content="${escapeHtml(article.title)}" />`);
 
   // Replace Twitter Tags
-  html = html.replace(/<meta\s+name="twitter:url"\s+content=".*?"\s*\/?>/i, `<meta name="twitter:url" content="${escapeHtml(articleUrl)}" />`);
-  html = html.replace(/<meta\s+name="twitter:title"\s+content=".*?"\s*\/?>/i, `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
-  html = html.replace(/<meta\s+name="twitter:description"\s+content=".*?"\s*\/?>/i, `<meta name="twitter:description" content="${escapeHtml(desc)}" />`);
-  html = html.replace(/<meta\s+name="twitter:image"\s+content=".*?"\s*\/?>/i, `<meta name="twitter:image" content="${escapeHtml(ogImageUrl)}" />`);
-  html = html.replace(/<meta\s+name="twitter:image:alt"\s+content=".*?"\s*\/?>/i, `<meta name="twitter:image:alt" content="${escapeHtml(article.title)}" />`);
+  html = html.replace(/<meta\s+name="twitter:url"\s+content=".*?"\s*\/?>/i, () => `<meta name="twitter:url" content="${escapeHtml(articleUrl)}" />`);
+  html = html.replace(/<meta\s+name="twitter:title"\s+content=".*?"\s*\/?>/i, () => `<meta name="twitter:title" content="${escapeHtml(title)}" />`);
+  html = html.replace(/<meta\s+name="twitter:description"\s+content=".*?"\s*\/?>/i, () => `<meta name="twitter:description" content="${escapeHtml(desc)}" />`);
+  html = html.replace(/<meta\s+name="twitter:image"\s+content=".*?"\s*\/?>/i, () => `<meta name="twitter:image" content="${escapeHtml(ogImageUrl)}" />`);
+  html = html.replace(/<meta\s+name="twitter:image:alt"\s+content=".*?"\s*\/?>/i, () => `<meta name="twitter:image:alt" content="${escapeHtml(article.title)}" />`);
 
   // Article body rendered server-side into a <noscript> fallback so crawlers
   // that do not execute JavaScript still receive the full article text.
@@ -383,13 +383,13 @@ function handleArticlePage(req: Request, res: Response) {
     </script>
   </head>`;
 
-  html = html.replace('</head>', articleMetaAdditions);
+  html = html.replace('</head>', () => articleMetaAdditions);
 
   // Place the crawler-visible article content directly in the document body.
   if (html.includes('<div id="root"></div>')) {
-    html = html.replace('<div id="root"></div>', `<div id="root"></div>\n${noscriptHtml}`);
+    html = html.replace('<div id="root"></div>', () => `<div id="root"></div>\n${noscriptHtml}`);
   } else {
-    html = html.replace('</body>', `${noscriptHtml}\n</body>`);
+    html = html.replace('</body>', () => `${noscriptHtml}\n</body>`);
   }
 
   res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400');
@@ -446,16 +446,16 @@ function handleHomePage(req: Request, res: Response): void {
   </head>` : '';
 
   if (itemListLd) {
-    html = html.replace('</head>', itemListLd);
+    html = html.replace('</head>', () => itemListLd);
   }
 
   // Advertise the RSS feed to crawlers and feed readers.
-  html = html.replace('</head>', `    <link rel="alternate" type="application/rss+xml" title="LENS RSS" href="/feed.xml" />\n  </head>`);
+  html = html.replace('</head>', () => `    <link rel="alternate" type="application/rss+xml" title="LENS RSS" href="/feed.xml" />\n  </head>`);
 
   if (html.includes('<div id="root"></div>')) {
-    html = html.replace('<div id="root"></div>', `<div id="root"></div>\n${noscriptHtml}`);
+    html = html.replace('<div id="root"></div>', () => `<div id="root"></div>\n${noscriptHtml}`);
   } else {
-    html = html.replace('</body>', `${noscriptHtml}\n</body>`);
+    html = html.replace('</body>', () => `${noscriptHtml}\n</body>`);
   }
 
   res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400');

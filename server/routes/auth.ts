@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import {
   isMasterPasswordSet,
   setMasterPassword,
+  setInitialMasterPassword,
   verifyMasterPassword,
   createSession,
   destroySession,
@@ -40,7 +41,10 @@ authRouter.post('/setup', async (req: Request, res: Response) => {
     return;
   }
 
-  await setMasterPassword(password);
+  if (!(await setInitialMasterPassword(password))) {
+    res.status(400).json({ error: 'Yönetici parolası zaten belirlenmiş.' });
+    return;
+  }
   const token = createSession();
 
   // Set secure HttpOnly cookie
@@ -87,10 +91,14 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
+  // Count the attempt *before* the slow async scrypt check. Recording it only
+  // after verification let parallel requests all pass checkRateLimit() while
+  // the counter was still low, bypassing the lockout. A successful login
+  // clears it again via resetRateLimit() below.
+  const { attempts, lockoutSeconds } = recordFailedAttempt(ip);
   const isValid = await verifyMasterPassword(password);
 
   if (!isValid) {
-    const { attempts, lockoutSeconds } = recordFailedAttempt(ip);
     if (lockoutSeconds > 0) {
       res.status(429).json({
         error: `Hatalı parola. Sistem güvenliği için ${lockoutSeconds} saniye kilitlendiniz.`,

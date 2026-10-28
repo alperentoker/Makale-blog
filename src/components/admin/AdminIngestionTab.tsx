@@ -94,7 +94,7 @@ export const AdminIngestionTab: React.FC<AdminIngestionTabProps> = ({
         const parsed = await parsePdfFile(file);
         const newArt: Article = {
           id: `art-${Date.now()}`,
-          slug: file.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          slug: slugify(parsed.title || file.name.replace(/\.[^/.]+$/, '')),
           title: parsed.title,
           dek: parsed.dek || 'İçe aktarılan savunma ve mühendislik belgesi.',
           abstract: parsed.abstract,
@@ -119,7 +119,7 @@ export const AdminIngestionTab: React.FC<AdminIngestionTabProps> = ({
         const { frontmatter, body } = extractFrontmatter(text);
         const newArt: Article = {
           id: `art-${Date.now()}`,
-          slug: (frontmatter.title || file.name).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          slug: slugify(frontmatter.title || file.name.replace(/\.mdx?$/, '')),
           title: frontmatter.title || file.name.replace(/\.md$/, ''),
           dek: frontmatter.dek || '',
           abstract: frontmatter.abstract || '',

@@ -60,185 +60,31 @@ pm2 startup
 
 Veritabanı sunucudaki `./data/lens.db` dosyasında SQLite WAL modunda saklanır; sunucu yeniden başlatılsa bile veri kaybı yaşanmaz.
 
-### Adım 3: Nginx Yapılandırması
+### Adım 3: SSL Sertifikası ve Nginx Yapılandırması
 
-`/etc/nginx/sites-available/lens-atoker` dosyasını oluşturun:
+Repo'daki [`nginx.conf`](nginx.conf), sunucudaki `/etc/nginx/sites-available/lens-atoker` dosyasının birebir kopyasıdır (Certbot TLS blokları dahil). Sunucudaki dosyayı elle düzenlemeyin; değişikliği önce repo'da yapın, sonra kopyalayın. CI deploy'u Nginx yapılandırmasını **güncellemez**.
 
-```nginx
-upstream lens_backend {
-    server 127.0.0.1:3001;
-}
-
-# 1. Varsayılan Yakalayıcı (Default Server / Catch-All):
-# atoker.dev, doğrudan IP veya eşleşmeyen diğer host isteklerini yakalar ve reddeder.
-# Böylece LENS platformu SADECE lens.atoker.dev üzerinden açılır, ana domain temiz kalır.
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    server_tokens off;
-    return 404;
-}
-
-# 2. LENS Platformu (lens.atoker.dev):
-server {
-    listen 80;
-    listen [::]:80;
-    server_name lens.atoker.dev;
-
-    root /var/www/lens-blog/dist;
-    index index.html;
-
-    server_tokens off;
-    client_max_body_size 15M;
-
-    # Güvenlik Başlıkları
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options    "nosniff" always;
-    add_header X-Frame-Options           "SAMEORIGIN" always;
-    add_header X-XSS-Protection          "1; mode=block" always;
-    add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy        "camera=(), microphone=(), geolocation=()" always;
-
-    # Content Security Policy
-    add_header Content-Security-Policy   "default-src 'self'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self';" always;
-
-    # Gzip Sıkıştırma
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 256;
-    gzip_proxied any;
-    gzip_comp_level 5;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
-
-    # API Ters Proxy
-    location ^~ /api/ {
-        proxy_pass http://lens_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_read_timeout 60s;
-    }
-
-    # Yüklenen Görseller & Şekiller (/uploads/)
-    location ^~ /uploads/ {
-        alias /var/www/lens-blog/data/uploads/;
-        expires 30d;
-        add_header Cache-Control "public";
-        access_log off;
-    }
-
-    # Dinamik SEO
-    location = /sitemap.xml {
-        proxy_pass http://lens_backend/sitemap.xml;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-    }
-
-    location = /robots.txt {
-        proxy_pass http://lens_backend/robots.txt;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-    }
-
-    # Dinamik Makale Paylaşımı & Open Graph Önizlemeleri (Facebook, LinkedIn, X, Slack, WhatsApp)
-    location ^~ /article/ {
-        proxy_pass http://lens_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-    }
-
-    location ^~ /makale/ {
-        proxy_pass http://lens_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-    }
-
-    # Dinamik Sosyal Kart Görsel Uç Noktası (/og/:slug.png)
-    location ^~ /og/ {
-        proxy_pass http://lens_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-    }
-
-    # Gizli dosyalara erişim engeli (.env, .git vb.)
-    location ~ /\.(?!well-known) {
-        deny all;
-        return 403;
-    }
-
-    # Statik Varlık Önbellekleme (Vite derleme dosyaları /assets/)
-    location ~* ^/assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-
-    # Kök Statik Dosyalar (favicon, og-image.png vb.)
-    location ~* \.(?:woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico|webp|avif)$ {
-        expires 7d;
-        add_header Cache-Control "public";
-        access_log off;
-    }
-
-    # SPA Yönlendirmesi (React Router)
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
-
-Yapılandırmayı etkinleştirin ve Nginx'i yeniden yükleyin:
-
-```bash
-sudo ln -sf /etc/nginx/sites-available/lens-atoker /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
----
-
-## 🔒 4. Ücretsiz SSL (HTTPS) Kurulumu — Certbot
-
-Let's Encrypt ile tek komutla otomatik SSL sertifikası tanımlayın:
+Yeni bir sunucuda, yapılandırma sertifika dosyalarına başvurduğu için önce sertifikayı alın:
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d lens.atoker.dev
+sudo certbot certonly --nginx -d lens.atoker.dev
 ```
 
-Certbot HTTP trafiğini otomatik olarak HTTPS'e yönlendirecektir.
+Ardından yapılandırmayı yedekleyip kopyalayın, test edin ve Nginx'i yeniden yükleyin:
+
+```bash
+sudo cp -p /etc/nginx/sites-available/lens-atoker /etc/nginx/lens-atoker.bak-$(date +%Y%m%d) 2>/dev/null || true
+sudo cp /var/www/lens-blog/nginx.conf /etc/nginx/sites-available/lens-atoker
+sudo ln -sf /etc/nginx/sites-available/lens-atoker /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Sertifika yenilemesi `certbot.timer` ile otomatik yapılır (`sudo certbot renew --dry-run` ile test edebilirsiniz).
 
 ---
 
-## 🛠️ 5. Parola Sıfırlama ve Yedekleme
+## 🛠️ 4. Parola Sıfırlama ve Yedekleme
 
 * **Veritabanı Yedeği:**
   Tek yapmanız gereken `data/lens.db` dosyasını kopyalamaktır:

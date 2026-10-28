@@ -212,7 +212,7 @@ articlesRouter.post('/', requireAuth, (req: Request, res: Response) => {
 
 // 4. PUT /api/articles/:id — Update existing article (Admin only)
 articlesRouter.put('/:id', requireAuth, (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const existingRow = db.prepare('SELECT * FROM articles WHERE id = ?').get(id);
 
   if (!existingRow) {
