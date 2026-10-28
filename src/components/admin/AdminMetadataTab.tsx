@@ -85,7 +85,7 @@ export const AdminMetadataTab: React.FC<AdminMetadataTabProps> = ({
     ]
   };
 
-  const isProtocolActive = protocol.enabled ?? (draft.id === 'art-benchmark-roadmap' || !!protocol.metrics?.length);
+  const isProtocolActive = protocol.enabled ?? !!protocol.metrics?.length;
 
   const handleToggleProtocol = () => {
     setDraft({

@@ -27,13 +27,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // katex and pdfjs-dist are left to Rollup's default splitting: forcing
+        // them into named chunks made the entry modulepreload them on every
+        // page. They now load only with the article reader / PDF import.
         manualChunks(id: string) {
-          if (id.includes('node_modules/katex')) {
-            return 'katex';
-          }
-          if (id.includes('node_modules/pdfjs-dist')) {
-            return 'pdfjs';
-          }
           if (
             id.includes('node_modules/react') ||
             id.includes('node_modules/react-dom') ||

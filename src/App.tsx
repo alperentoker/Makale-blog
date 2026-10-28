@@ -14,11 +14,13 @@ import {
 import { Header } from './components/Header';
 import { ReadingProgressBar } from './components/ReadingProgressBar';
 import { ArticleList } from './components/ArticleList';
-import { ArticleReader } from './components/ArticleReader';
 import { AdminLogin } from './components/AdminLogin';
 import { NotFoundPage } from './components/NotFoundPage';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 
+// Article pages pull in KaTeX and the Markdown engine; keep them out of the
+// archive/home bundle.
+const ArticleReader = React.lazy(() => import('./components/ArticleReader').then(m => ({ default: m.ArticleReader })));
 const AdminStudio = React.lazy(() => import('./components/AdminStudio').then(m => ({ default: m.AdminStudio })));
 
 // Route component for reading single articles by ID or Slug using TanStack Query
@@ -121,23 +123,27 @@ const ArticleReaderPage: React.FC<ArticleReaderPageProps> = ({
   }
 
   if (!activeArticle) {
-    return (
-      <div className="py-32 text-center">
-        <div className="w-8 h-8 border-2 border-tactical-blue border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <div className="font-mono text-xs text-ink-500">Rapor Yükleniyor...</div>
-      </div>
-    );
+    return reportLoading;
   }
 
   return (
-    <ArticleReader
-      article={activeArticle}
-      allArticles={articles}
-      onSelectArticle={onSelectArticle}
-      onBackToArchive={onBackToArchive}
-    />
+    <Suspense fallback={reportLoading}>
+      <ArticleReader
+        article={activeArticle}
+        allArticles={articles}
+        onSelectArticle={onSelectArticle}
+        onBackToArchive={onBackToArchive}
+      />
+    </Suspense>
   );
 };
+
+const reportLoading = (
+  <div className="py-32 text-center">
+    <div className="w-8 h-8 border-2 border-tactical-blue border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+    <div className="font-mono text-xs text-ink-500">Rapor Yükleniyor...</div>
+  </div>
+);
 
 // Aliased route redirect: /makale/:idOrSlug -> /article/:idOrSlug
 const MakaleRedirect: React.FC = () => {
@@ -389,12 +395,6 @@ export const App: React.FC = () => {
           <Route
             path="/makale/:idOrSlug"
             element={<MakaleRedirect />}
-          />
-
-          {/* Legacy EO-IR alias redirect -> new taktik termal roadmap */}
-          <Route
-            path="/article/eo-ir-dualmode-detection-bilimsel-kiyaslama-ve-ablasyon-yol-haritasi"
-            element={<Navigate to="/article/taktik-termal-lwir-nesne-tespiti-mimari-turnuvasi-ve-capraz-perspektif-cokus-analizi-yol-haritasi" replace />}
           />
 
           {/* Direct Admin Route (renders archive under overlay) */}
